@@ -1,0 +1,7 @@
+# Visual Studio temporary files
+.vs/
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.shell_repro.vs/  bin/  obj/ 
