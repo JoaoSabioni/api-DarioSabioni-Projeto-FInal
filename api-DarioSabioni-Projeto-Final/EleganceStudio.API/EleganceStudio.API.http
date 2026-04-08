@@ -1,0 +1,6 @@
+@EleganceStudio.API_HostAddress = http://localhost:5134
+
+GET {{EleganceStudio.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
