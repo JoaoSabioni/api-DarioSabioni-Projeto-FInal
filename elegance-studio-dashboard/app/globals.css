@@ -1,0 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Didact+Gothic&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-black: #080808;
+  --color-dark: #111111;
+  --color-dark2: #1a1a1a;
+  --color-silver: #c8c8c8;
+  --color-silver-light: #e8e8e8;
+  --color-silver-dim: #888888;
+  --font-display: 'Cormorant Garamond', serif;
+  --font-body: 'Didact Gothic', sans-serif;
+}
+
+* {
+  border-radius: 0 !important;
+  -webkit-font-smoothing: antialiased;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background-color: #080808;
+  color: #e8e8e8;
+  font-family: 'Didact Gothic', sans-serif;
+  overflow-x: hidden;
+}
