@@ -8,8 +8,11 @@ using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
 using System.Text;
 using System.Threading.RateLimiting;
+<<<<<<< HEAD
 using Microsoft.Extensions.Http;
 using Polly;
+=======
+>>>>>>> fc1705552bc3eaa5f704215ab27bd92de2c17f66
 
 var builder = WebApplication.CreateBuilder(args);
 
