@@ -8,11 +8,8 @@ using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
 using System.Text;
 using System.Threading.RateLimiting;
-<<<<<<< HEAD
 using Microsoft.Extensions.Http;
 using Polly;
-=======
->>>>>>> fc1705552bc3eaa5f704215ab27bd92de2c17f66
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -45,7 +42,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience            = builder.Configuration["Jwt:Audience"],
             IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
         };
-        // Necessário para SignalR (token via query string)
+        // NecessÃ¡rio para SignalR (token via query string)
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
@@ -106,4 +103,10 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<EleganceStudio.API.Hubs.BookingHub>("/hubs/bookings");
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await DbSeeder.SeedAsync(db);
+}
+
 app.Run();

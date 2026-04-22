@@ -1,0 +1,19 @@
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+WORKDIR /app
+EXPOSE 5134
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY ["EleganceStudio.API/EleganceStudio.API.csproj", "EleganceStudio.API/"]
+RUN dotnet restore "EleganceStudio.API/EleganceStudio.API.csproj"
+COPY . .
+WORKDIR "/src/EleganceStudio.API"
+RUN dotnet build -c Release -o /app/build
+
+FROM build AS publish
+RUN dotnet publish -c Release -o /app/publish
+
+FROM base AS final
+WORKDIR /app
+COPY --from=publish /app/publish .
+ENTRYPOINT ["dotnet", "EleganceStudio.API.dll"]

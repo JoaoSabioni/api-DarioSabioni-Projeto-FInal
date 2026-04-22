@@ -1,7 +1,9 @@
+using EleganceStudio.API.Data;
 using EleganceStudio.API.DTOs;
 using EleganceStudio.API.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 
 namespace EleganceStudio.API.Controllers;
 
@@ -10,10 +12,12 @@ namespace EleganceStudio.API.Controllers;
 public class AvailabilityController : ControllerBase
 {
     private readonly IAvailabilityService _availability;
+    private readonly AppDbContext _db;
 
-    public AvailabilityController(IAvailabilityService availability)
+    public AvailabilityController(IAvailabilityService availability, AppDbContext db)
     {
         _availability = availability;
+        _db = db;
     }
 
     /// <summary>
@@ -27,42 +31,31 @@ public class AvailabilityController : ControllerBase
         [FromQuery] Guid serviceId,
         [FromQuery] DateOnly date)
     {
-        // O AvailabilityService já faz todas as validações
-        // (barbeiro existe, serviço existe, data válida, fuso horário PT)
-        try
-        {
-            var slots = await _availability.GetAvailableSlotsAsync(
-                barberId, date, serviceId);
-
-            // Buscar duração do serviço para incluir no response
-            // (o serviço já foi validado dentro do service)
-            var response = new AvailabilityResponseDto
-            {
-                Date = date,
-                BarberId = barberId,
-                ServiceId = serviceId,
-                AvailableSlots = slots.Select(s => s.ToString("HH:mm")).ToList()
-            };
-
-            return Ok(response);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new ProblemDetails
-            {
-                Status = 400,
-                Title = "Parâmetros inválidos.",
-                Detail = ex.Message
-            });
-        }
-        catch (KeyNotFoundException ex)
-        {
+        // Validar que barbeiro existe
+        var barberExists = await _db.Barbers.AnyAsync(b => b.Id == barberId);
+        if (!barberExists)
             return NotFound(new ProblemDetails
-            {
-                Status = 404,
-                Title = "Recurso não encontrado.",
-                Detail = ex.Message
-            });
-        }
+            { Status = 404, Title = "Barbeiro não encontrado." });
+
+        // Validar que serviço existe
+        var service = await _db.Services.FindAsync(serviceId);
+        if (service == null)
+            return NotFound(new ProblemDetails
+            { Status = 404, Title = "Serviço não encontrado." });
+
+        // Buscar slots disponíveis
+        var slots = await _availability.GetAvailableSlotsAsync(
+            barberId, date, serviceId);
+
+        var response = new AvailabilityResponseDto
+        {
+            Date = date,
+            BarberId = barberId,
+            ServiceId = serviceId,
+            ServiceDurationMinutes = service.DurationMinutes,
+            AvailableSlots = slots.Select(s => s.ToString("HH:mm")).ToList()
+        };
+
+        return Ok(response);
     }
 }

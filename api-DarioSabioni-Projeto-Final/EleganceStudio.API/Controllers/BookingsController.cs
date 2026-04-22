@@ -196,7 +196,6 @@ public class BookingsController : ControllerBase
                 $"{dto.BookingDate} às {dto.BookingTime:HH:mm}");
 
             // 10. SignalR — notificar barbeiro (agenda)
-            // Recarregar com includes para mapear o DTO
             var full = await _db.Bookings
                 .Include(b => b.Barber)
                 .Include(b => b.Service)
@@ -258,8 +257,9 @@ public class BookingsController : ControllerBase
         var cached = await _redis.StringGetAsync(cacheKey);
         if (cached.HasValue)
         {
+            // ✅ FIX: cast explícito para string — RedisValue é ambíguo
             var cachedResult = System.Text.Json.JsonSerializer
-                .Deserialize<List<BookingPublicDto>>(cached!);
+                .Deserialize<List<BookingPublicDto>>((string)cached!);
             return Ok(cachedResult);
         }
 
@@ -300,7 +300,8 @@ public class BookingsController : ControllerBase
         await _redis.KeyDeleteAsync($"confirm:{token}");
 
         // 3. Actualizar marcação
-        var bookingId = Guid.Parse(bookingIdStr!);
+        // ✅ FIX: cast explícito para string — RedisValue é ambíguo com Guid.Parse
+        var bookingId = Guid.Parse((string)bookingIdStr!);
         var booking = await _db.Bookings
             .Include(b => b.Barber)
             .Include(b => b.Service)
@@ -465,7 +466,6 @@ public class BookingsController : ControllerBase
         if (booking == null) return NotFound();
         if (!IsAuthorizedForBarber(booking.BarberId)) return Forbid();
 
-        // Determinar os novos valores (manter os actuais se não fornecidos)
         var newDate = dto.BookingDate ?? booking.BookingDate;
         var newTime = dto.BookingTime ?? booking.BookingTime;
         var newServiceId = dto.ServiceId ?? booking.ServiceId;
@@ -475,13 +475,11 @@ public class BookingsController : ControllerBase
             return NotFound(new ProblemDetails
             { Status = 404, Title = "Serviço não encontrado." });
 
-        // Validar data
         var today = TodayInLisbon();
         if (newDate < today)
             return BadRequest(new ProblemDetails
             { Status = 400, Title = "Não é possível marcar no passado." });
 
-        // Transacção atómica para re-validar disponibilidade
         await using var transaction = await _db.Database
             .BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
 
@@ -518,12 +516,10 @@ public class BookingsController : ControllerBase
                 }
             }
 
-            // Guardar slots antigos para libertar via SignalR
             var oldDate = booking.BookingDate;
             var oldSlots = GetOccupiedSlots(booking.BookingTime,
                 booking.Service.DurationMinutes);
 
-            // Actualizar
             booking.BookingDate = newDate;
             booking.BookingTime = newTime;
             booking.ServiceId = newServiceId;
@@ -550,13 +546,11 @@ public class BookingsController : ControllerBase
                     .SendAsync("SlotUnavailable", slot.ToString("HH:mm"));
             }
 
-            // Recarregar com Service actualizado
             var updated = await _db.Bookings
                 .Include(b => b.Barber)
                 .Include(b => b.Service)
                 .FirstAsync(b => b.Id == id);
 
-            // SignalR — actualizar agenda
             await _hub.Clients
                 .Group($"barber-{booking.BarberId}")
                 .SendAsync("BookingUpdated", ToBarberDto(updated));

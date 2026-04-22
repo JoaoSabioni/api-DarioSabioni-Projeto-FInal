@@ -1,64 +1,4 @@
 using EleganceStudio.API.Data;
-<<<<<<< HEAD
-using EleganceStudio.API.DTOs;
-using EleganceStudio.API.Interfaces;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.EntityFrameworkCore;
-
-namespace EleganceStudio.API.Controllers;
-
-[ApiController]
-[Route("api/[controller]")]
-public class AvailabilityController : ControllerBase
-{
-    private readonly IAvailabilityService _availability;
-    private readonly AppDbContext _db;
-
-    public AvailabilityController(IAvailabilityService availability, AppDbContext db)
-    {
-        _availability = availability;
-        _db = db;
-    }
-
-    /// <summary>
-    /// GET /api/availability?barberId=...&date=...&serviceId=...
-    /// Devolve os slots disponíveis para um barbeiro/serviço/data.
-    /// </summary>
-    [HttpGet]
-    [EnableRateLimiting("availability")]
-    public async Task<IActionResult> GetAvailable(
-        [FromQuery] Guid barberId,
-        [FromQuery] Guid serviceId,
-        [FromQuery] DateOnly date)
-    {
-        // Validar que barbeiro existe
-        var barberExists = await _db.Barbers.AnyAsync(b => b.Id == barberId);
-        if (!barberExists)
-            return NotFound(new ProblemDetails
-            { Status = 404, Title = "Barbeiro não encontrado." });
-
-        // Validar que serviço existe
-        var service = await _db.Services.FindAsync(serviceId);
-        if (service == null)
-            return NotFound(new ProblemDetails
-            { Status = 404, Title = "Serviço não encontrado." });
-
-        // Buscar slots disponíveis
-        var slots = await _availability.GetAvailableSlotsAsync(
-            barberId, date, serviceId);
-
-        var response = new AvailabilityResponseDto
-        {
-            Date = date,
-            BarberId = barberId,
-            ServiceId = serviceId,
-            ServiceDurationMinutes = service.DurationMinutes,
-            AvailableSlots = slots.Select(s => s.ToString("HH:mm")).ToList()
-        };
-
-        return Ok(response);
-=======
 using EleganceStudio.API.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -79,26 +19,28 @@ public class AvailabilityService : IAvailabilityService
         _lisbon = TimeZoneInfo.FindSystemTimeZoneById("Europe/Lisbon");
 
         var wh = config.GetSection("WorkingHours");
-        _workStart   = TimeOnly.Parse(wh["Start"] ?? "09:00");
-        _workEnd     = TimeOnly.Parse(wh["End"]   ?? "19:00");
+        _workStart = TimeOnly.Parse(wh["Start"] ?? "09:00");
+        _workEnd = TimeOnly.Parse(wh["End"] ?? "19:00");
         _slotInterval = int.Parse(wh["SlotIntervalMinutes"] ?? "30");
     }
 
     public async Task<List<TimeOnly>> GetAvailableSlotsAsync(
         Guid barberId, DateOnly date, Guid serviceId)
     {
-      
+        // 1. Validar barbeiro
         var barberExists = await _db.Barbers.AnyAsync(b => b.Id == barberId);
         if (!barberExists) return new List<TimeOnly>();
 
+        // 2. Validar serviço
         var service = await _db.Services.FindAsync(serviceId);
         if (service == null) return new List<TimeOnly>();
 
+        // 3. Validar data (hora local de Portugal)
         var nowLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _lisbon);
-        var today    = DateOnly.FromDateTime(nowLocal);
+        var today = DateOnly.FromDateTime(nowLocal);
         if (date < today || date > today.AddDays(60)) return new List<TimeOnly>();
 
-        
+        // 4. Gerar todos os slots válidos para este serviço
         var slots = new List<TimeOnly>();
         var current = _workStart;
         while (current.AddMinutes(service.DurationMinutes) <= _workEnd)
@@ -107,14 +49,14 @@ public class AvailabilityService : IAvailabilityService
             current = current.AddMinutes(_slotInterval);
         }
 
-    
+        // 5. Se hoje, remover slots já passados (hora local PT)
         if (date == today)
         {
             var nowTime = TimeOnly.FromDateTime(nowLocal);
             slots = slots.Where(s => s > nowTime).ToList();
         }
 
-        
+        // 6. Buscar marcações activas do barbeiro nesse dia
         var activeBookings = await _db.Bookings
             .Include(b => b.Service)
             .Where(b => b.BarberId == barberId
@@ -123,7 +65,7 @@ public class AvailabilityService : IAvailabilityService
                      && !b.IsDeleted)
             .ToListAsync();
 
-    
+        // 7. Calcular slots bloqueados (considerando duração de cada marcação)
         var blocked = new HashSet<TimeOnly>();
         foreach (var booking in activeBookings)
         {
@@ -136,8 +78,7 @@ public class AvailabilityService : IAvailabilityService
             }
         }
 
-        // 7. Devolver apenas slots livres
+        // 8. Devolver apenas slots livres
         return slots.Where(s => !blocked.Contains(s)).ToList();
->>>>>>> fc1705552bc3eaa5f704215ab27bd92de2c17f66
     }
 }

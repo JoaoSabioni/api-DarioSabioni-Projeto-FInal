@@ -86,12 +86,18 @@ namespace EleganceStudio.API.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("ClientPhone")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("PhoneNumber")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
 
                     b.Property<Guid>("ServiceId")
                         .HasColumnType("uuid");
@@ -100,11 +106,16 @@ namespace EleganceStudio.API.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("BarberId");
-
                     b.HasIndex("ServiceId");
+
+                    b.HasIndex("BarberId", "BookingDate", "BookingTime")
+                        .IsUnique()
+                        .HasFilter("\"Status\" != 'Cancelled' AND \"IsDeleted\" = false");
 
                     b.ToTable("Bookings");
                 });
@@ -133,37 +144,96 @@ namespace EleganceStudio.API.Migrations
                         new
                         {
                             Id = new Guid("b2b2b2b2-0000-0000-0000-000000000001"),
-                            DurationMinutes = 0,
+                            DurationMinutes = 30,
                             Name = "Sobrancelhas",
                             Price = 3m
                         },
                         new
                         {
                             Id = new Guid("b2b2b2b2-0000-0000-0000-000000000002"),
-                            DurationMinutes = 0,
+                            DurationMinutes = 30,
                             Name = "Barba",
                             Price = 6m
                         },
                         new
                         {
                             Id = new Guid("b2b2b2b2-0000-0000-0000-000000000003"),
-                            DurationMinutes = 0,
+                            DurationMinutes = 30,
                             Name = "Corte Simples",
                             Price = 10m
                         },
                         new
                         {
                             Id = new Guid("b2b2b2b2-0000-0000-0000-000000000004"),
-                            DurationMinutes = 0,
+                            DurationMinutes = 45,
                             Name = "Corte/Degradê",
                             Price = 15m
                         },
                         new
                         {
                             Id = new Guid("b2b2b2b2-0000-0000-0000-000000000005"),
-                            DurationMinutes = 0,
+                            DurationMinutes = 60,
                             Name = "Corte & Barba",
                             Price = 17m
+                        });
+                });
+
+            modelBuilder.Entity("EleganceStudio.API.Models.User", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("BarberId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Users");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("c0c0c0c0-0000-0000-0000-000000000001"),
+                            PasswordHash = "$2a$11$F/3ALbxtG0XpFPvj7tuu8ONJDu2ibccJ5N8k8zMXuNxb1Ov9E1yH2",
+                            Role = "Admin",
+                            Username = "admin"
+                        },
+                        new
+                        {
+                            Id = new Guid("c0c0c0c0-0000-0000-0000-000000000002"),
+                            BarberId = new Guid("a1a1a1a1-0000-0000-0000-000000000001"),
+                            PasswordHash = "$2a$11$WXBksBKQ34WTNrK6RIzMW.69t8rkf9YExC76gCorB2X8qmc.hC8OC",
+                            Role = "Barber",
+                            Username = "edi"
+                        },
+                        new
+                        {
+                            Id = new Guid("c0c0c0c0-0000-0000-0000-000000000003"),
+                            BarberId = new Guid("a1a1a1a1-0000-0000-0000-000000000002"),
+                            PasswordHash = "$2a$11$EVSVBwepA4jz0NmsYc5Z7uzNbGgJsiZ7ATTdFuD.GCg.OtpnzjhQi",
+                            Role = "Barber",
+                            Username = "tomas"
+                        },
+                        new
+                        {
+                            Id = new Guid("c0c0c0c0-0000-0000-0000-000000000004"),
+                            BarberId = new Guid("a1a1a1a1-0000-0000-0000-000000000003"),
+                            PasswordHash = "$2a$11$mg0855dOiHUJrpllFodIK.6o9AZE9LcHpatNSqhBe76Y946OfgFf.",
+                            Role = "Barber",
+                            Username = "abreu"
                         });
                 });
 

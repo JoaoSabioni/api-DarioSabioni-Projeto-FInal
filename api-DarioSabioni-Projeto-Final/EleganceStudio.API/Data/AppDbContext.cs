@@ -6,10 +6,10 @@ namespace EleganceStudio.API.Data;
 public class AppDbContext : DbContext
 {
     // Hashes pré-computados e fixos (gerar em casa com BCrypt.Net-Next)
-    private const string AdminHash = "SUBSTITUIR_PELO_HASH_REAL";
-    private const string EdiHash   = "SUBSTITUIR_PELO_HASH_REAL";
-    private const string TomasHash = "SUBSTITUIR_PELO_HASH_REAL";
-    private const string AbreuHash = "SUBSTITUIR_PELO_HASH_REAL";
+    private const string AdminHash = "$2a$11$F/3ALbxtG0XpFPvj7tuu8ONJDu2ibccJ5N8k8zMXuNxb1Ov9E1yH2";
+    private const string EdiHash   = "$2a$11$WXBksBKQ34WTNrK6RIzMW.69t8rkf9YExC76gCorB2X8qmc.hC8OC";
+    private const string TomasHash = "$2a$11$EVSVBwepA4jz0NmsYc5Z7uzNbGgJsiZ7ATTdFuD.GCg.OtpnzjhQi";
+    private const string AbreuHash = "$2a$11$mg0855dOiHUJrpllFodIK.6o9AZE9LcHpatNSqhBe76Y946OfgFf.";
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
