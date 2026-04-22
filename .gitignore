@@ -5,3 +5,7 @@
 *.user
 *.suo
 *.shell_repro.vs/  bin/  obj/ 
+
+node_modules/
+
+.next/
