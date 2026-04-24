@@ -1,27 +1,181 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Didact+Gothic&display=swap');
 @import "tailwindcss";
 
-@theme {
-  --color-black: #080808;
-  --color-dark: #111111;
-  --color-dark2: #1a1a1a;
-  --color-silver: #c8c8c8;
-  --color-silver-light: #e8e8e8;
-  --color-silver-dim: #888888;
-  --font-display: 'Cormorant Garamond', serif;
-  --font-body: 'Didact Gothic', sans-serif;
+/* ── Google Fonts ─────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+
+/* ── CSS Variables ────────────────────────────────────────────────────────── */
+:root {
+  --gold: #c9a96e;
+  --gold-dim: rgba(201, 169, 110, 0.15);
+  --surface: #0a0a0a;
 }
 
-* {
-  border-radius: 0 !important;
-  -webkit-font-smoothing: antialiased;
-}
-
+/* ── Base ─────────────────────────────────────────────────────────────────── */
 html { scroll-behavior: smooth; }
 
 body {
-  background-color: #080808;
-  color: #e8e8e8;
-  font-family: 'Didact Gothic', sans-serif;
-  overflow-x: hidden;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background: var(--surface);
+  -webkit-font-smoothing: antialiased;
 }
+
+/* Grain texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+  opacity: 0.025;
+  mix-blend-mode: overlay;
+}
+
+/* ── Fonts ────────────────────────────────────────────────────────────────── */
+.font-serif { font-family: 'Cormorant Garamond', Georgia, serif; }
+.font-sans  { font-family: 'DM Sans', system-ui, sans-serif; }
+
+/* ── Keyframes ────────────────────────────────────────────────────────────── */
+
+/* Login scissors loader */
+@keyframes scissors-top {
+  0%, 100% { transform: rotate(-20deg); }
+  50%       { transform: rotate(10deg); }
+}
+@keyframes scissors-bottom {
+  0%, 100% { transform: rotate(20deg); }
+  50%       { transform: rotate(-10deg); }
+}
+@keyframes scissors-body {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-3px); }
+}
+
+/* Shimmer for skeleton loaders */
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+/* Fade + slide up (staggered list items) */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Fade in */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Pulse glow */
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.05); }
+  50%       { box-shadow: 0 0 12px 2px rgba(255,255,255,0.08); }
+}
+
+/* Sweep line (login progress) */
+@keyframes sweep {
+  0%   { transform: scaleX(0); transform-origin: left; }
+  50%  { transform: scaleX(1); transform-origin: left; }
+  51%  { transform: scaleX(1); transform-origin: right; }
+  100% { transform: scaleX(0); transform-origin: right; }
+}
+
+/* Spin slow */
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Counter numbers */
+@keyframes countUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* ── Utility classes ──────────────────────────────────────────────────────── */
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.03) 0%,
+    rgba(255,255,255,0.08) 50%,
+    rgba(255,255,255,0.03) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+.animate-fade-slide-up {
+  animation: fadeSlideUp 0.35s ease forwards;
+  opacity: 0;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease forwards;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+.animate-sweep {
+  animation: sweep 1.6s ease-in-out infinite;
+}
+
+.animate-spin-slow {
+  animation: spinSlow 3s linear infinite;
+}
+
+/* Stagger delays */
+.delay-0   { animation-delay: 0ms; }
+.delay-50  { animation-delay: 50ms; }
+.delay-100 { animation-delay: 100ms; }
+.delay-150 { animation-delay: 150ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-250 { animation-delay: 250ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-350 { animation-delay: 350ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+
+/* Scissors loader */
+.scissors-loader {
+  animation: scissors-body 1s ease-in-out infinite;
+}
+.scissors-blade-top {
+  transform-origin: 50% 75%;
+  animation: scissors-top 1s ease-in-out infinite;
+}
+.scissors-blade-bottom {
+  transform-origin: 50% 25%;
+  animation: scissors-bottom 1s ease-in-out infinite;
+}
+
+/* Gold accent line */
+.gold-line {
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+}
+
+/* Subtle border glow on hover */
+.hover-glow {
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.hover-glow:hover {
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 4px 20px rgba(0,0,0,0.4);
+}
+
+/* Glass card */
+.glass {
+  background: rgba(255,255,255,0.02);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar       { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }

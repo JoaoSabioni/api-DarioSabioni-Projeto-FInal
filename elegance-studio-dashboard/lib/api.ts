@@ -20,7 +20,7 @@ async function request(path: string, options: RequestInit = {}) {
   return res
 }
 
-// ─── Auth ────────────────────────────────────────────────────────────────────
+// ─── Auth ─────────────────────────────────────────────────────────────────────
 export async function login(username: string, password: string) {
   const res = await fetch(`${API}/api/auth/login`, {
     method: 'POST',
@@ -31,7 +31,28 @@ export async function login(username: string, password: string) {
   return res.json()
 }
 
-// ─── Bookings ────────────────────────────────────────────────────────────────
+// ─── Barbers ──────────────────────────────────────────────────────────────────
+export async function getBarbers() {
+  const res = await fetch(`${API}/api/barbers`)
+  if (!res.ok) throw new Error('Erro ao carregar barbeiros')
+  return res.json()
+}
+
+// ─── Services ─────────────────────────────────────────────────────────────────
+export async function getServices() {
+  const res = await fetch(`${API}/api/services`)
+  if (!res.ok) throw new Error('Erro ao carregar serviços')
+  return res.json()
+}
+
+// ─── Availability ─────────────────────────────────────────────────────────────
+export async function getAvailability(barberId: string, date: string, serviceId: string) {
+  const res = await request(`/api/availability?barberId=${barberId}&date=${date}&serviceId=${serviceId}`)
+  if (!res.ok) throw new Error('Erro ao carregar disponibilidade')
+  return res.json()
+}
+
+// ─── Bookings (Barber) ────────────────────────────────────────────────────────
 export async function getBarberBookings(barberId: string) {
   const res = await request(`/api/bookings/barber/${barberId}`)
   if (!res.ok) throw new Error('Erro ao carregar marcações')
@@ -44,6 +65,27 @@ export async function getBarberDayBookings(barberId: string, date: string) {
   return res.json()
 }
 
+// ─── Bookings (Admin) ─────────────────────────────────────────────────────────
+export async function getAllBookings() {
+  const res = await request('/api/bookings')
+  if (!res.ok) throw new Error('Erro ao carregar marcações')
+  return res.json()
+}
+
+export async function getAllBookingsByDate(date: string) {
+  const res = await request(`/api/bookings?date=${date}`)
+  if (!res.ok) {
+    // fallback: tentar sem filtro de data
+    const res2 = await request('/api/bookings')
+    if (!res2.ok) throw new Error('Erro ao carregar marcações')
+    const all = await res2.json()
+    // filtrar no cliente por data
+    return all.filter((b: { bookingDate: string }) => b.bookingDate === date)
+  }
+  return res.json()
+}
+
+// ─── Booking actions ──────────────────────────────────────────────────────────
 export async function confirmBooking(id: string) {
   const res = await request(`/api/bookings/${id}/confirm`, { method: 'PUT' })
   if (!res.ok) throw new Error('Erro ao confirmar')
@@ -66,14 +108,31 @@ export async function updateBooking(id: string, data: { bookingDate?: string; bo
   return res.json()
 }
 
-// ─── Admin ───────────────────────────────────────────────────────────────────
-export async function getAllBookings() {
-  const res = await request('/api/bookings')
-  if (!res.ok) throw new Error('Erro ao carregar')
+export async function createBooking(data: {
+  barberId: string
+  serviceId: string
+  bookingDate: string
+  bookingTime: string
+  clientName: string
+  clientPhone: string
+}) {
+  const res = await request('/api/bookings', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+  if (res.status === 409) throw new Error('Horário já ocupado')
+  if (!res.ok) throw new Error('Erro ao criar marcação')
   return res.json()
 }
 
 export async function deleteBooking(id: string) {
   const res = await request(`/api/bookings/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error('Erro ao apagar')
+}
+
+// ─── Lookup público ───────────────────────────────────────────────────────────
+export async function lookupBooking(phone: string) {
+  const res = await fetch(`${API}/api/bookings/lookup?phone=${encodeURIComponent(phone)}`)
+  if (!res.ok) throw new Error('Marcação não encontrada')
+  return res.json()
 }

@@ -3,7 +3,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { getUser, isAuthenticated, clearAuth } from '@/lib/auth'
-import { getBarberDayBookings, confirmBooking, cancelBooking } from '@/lib/api'
+import {
+  getBarberDayBookings,
+  getAllBookingsByDate,
+  confirmBooking,
+  cancelBooking,
+  getBarbers,
+} from '@/lib/api'
 import NewBookingModal from '../components/NewBookingModal'
 
 type Booking = {
@@ -20,6 +26,11 @@ type Booking = {
   updatedAt: string | null
 }
 
+type Barber = {
+  id: string
+  name: string
+}
+
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
@@ -29,73 +40,90 @@ function formatDate(d: Date) {
 
 function statusColor(status: string) {
   switch (status) {
-    case 'Pending': return 'border-yellow-500/40 bg-yellow-500/5 text-yellow-400'
+    case 'Pending':   return 'border-yellow-500/40 bg-yellow-500/5 text-yellow-400'
     case 'Confirmed': return 'border-emerald-500/40 bg-emerald-500/5 text-emerald-400'
-    case 'Cancelled': return 'border-zinc-600/40 bg-zinc-800/20 text-zinc-500 line-through'
-    default: return 'border-white/10 text-zinc-400'
+    case 'Cancelled': return 'border-zinc-700/40 bg-zinc-900/30 text-zinc-600 line-through'
+    default:          return 'border-white/10 text-zinc-400'
   }
 }
 
 function statusLabel(status: string) {
   switch (status) {
-    case 'Pending': return 'PENDENTE'
-    case 'Confirmed': return 'CONFIRMADA'
-    case 'Cancelled': return 'CANCELADA'
-    default: return status
+    case 'Pending':   return 'Pendente'
+    case 'Confirmed': return 'Confirmada'
+    case 'Cancelled': return 'Cancelada'
+    default:          return status
+  }
+}
+
+function statusBadgeColor(status: string) {
+  switch (status) {
+    case 'Pending':   return 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+    case 'Confirmed': return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+    case 'Cancelled': return 'bg-zinc-800 text-zinc-500 border border-zinc-700/30'
+    default:          return 'bg-zinc-800 text-zinc-400'
   }
 }
 
 export default function DashboardPage() {
   const router = useRouter()
   const [user, setUser] = useState<ReturnType<typeof getUser>>(null)
+  const [barbers, setBarbers] = useState<Barber[]>([])
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
   const [showNewBooking, setShowNewBooking] = useState(false)
+  const [filterBarber, setFilterBarber] = useState<string>('all')
 
   // Auth check
   useEffect(() => {
     if (!isAuthenticated()) { router.push('/login'); return }
-    setUser(getUser())
+    const u = getUser()
+    setUser(u)
   }, [router])
 
-  // Fetch bookings for selected date
+  // Fetch barbers (for admin filter)
+  useEffect(() => {
+    if (!user) return
+    if (user.role === 'Admin') {
+      getBarbers().then(setBarbers).catch(() => setBarbers([]))
+    }
+  }, [user])
+
+  // Fetch bookings
   const fetchBookings = useCallback(async () => {
-    if (!user?.barberId) return
+    if (!user) return
     setLoading(true)
     try {
-      const data = await getBarberDayBookings(user.barberId, formatDate(selectedDate))
+      let data: Booking[] = []
+      if (user.role === 'Admin') {
+        data = await getAllBookingsByDate(formatDate(selectedDate))
+      } else if (user.barberId) {
+        data = await getBarberDayBookings(user.barberId, formatDate(selectedDate))
+      }
       setBookings(data)
     } catch {
       setBookings([])
     } finally {
       setLoading(false)
     }
-  }, [user?.barberId, selectedDate])
+  }, [user, selectedDate])
 
   useEffect(() => { fetchBookings() }, [fetchBookings])
 
   // Actions
   const handleConfirm = async (id: string) => {
     setActionLoading(true)
-    try {
-      await confirmBooking(id)
-      await fetchBookings()
-      setSelectedBooking(null)
-    } catch { }
-    finally { setActionLoading(false) }
+    try { await confirmBooking(id); await fetchBookings(); setSelectedBooking(null) }
+    catch { } finally { setActionLoading(false) }
   }
 
   const handleCancel = async (id: string) => {
     setActionLoading(true)
-    try {
-      await cancelBooking(id)
-      await fetchBookings()
-      setSelectedBooking(null)
-    } catch { }
-    finally { setActionLoading(false) }
+    try { await cancelBooking(id); await fetchBookings(); setSelectedBooking(null) }
+    catch { } finally { setActionLoading(false) }
   }
 
   const handleLogout = () => { clearAuth(); router.push('/login') }
@@ -111,33 +139,57 @@ export default function DashboardPage() {
 
   const prevWeek = () => setSelectedDate(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n })
   const nextWeek = () => setSelectedDate(d => { const n = new Date(d); n.setDate(n.getDate() + 7); return n })
-  const goToday = () => setSelectedDate(new Date())
+  const goToday  = () => setSelectedDate(new Date())
 
-  const isToday = (d: Date) => formatDate(d) === formatDate(new Date())
+  const isToday    = (d: Date) => formatDate(d) === formatDate(new Date())
   const isSelected = (d: Date) => formatDate(d) === formatDate(selectedDate)
+
+  // Filtered bookings
+  const visibleBookings = bookings.filter(b =>
+    filterBarber === 'all' || b.barberName === filterBarber
+  )
+
+  // Stats
+  const stats = {
+    total:     visibleBookings.filter(b => b.status !== 'Cancelled').length,
+    confirmed: visibleBookings.filter(b => b.status === 'Confirmed').length,
+    pending:   visibleBookings.filter(b => b.status === 'Pending').length,
+    cancelled: visibleBookings.filter(b => b.status === 'Cancelled').length,
+  }
+
+  // Barber display name
+  const barberDisplayName = user?.role === 'Admin'
+    ? 'Administrador'
+    : barbers.find(b => b.id === user?.barberId)?.name ?? 'Barbeiro'
 
   if (!user) return null
 
   return (
-    <div className="min-h-screen bg-black text-white font-sans">
+    <div className="min-h-screen bg-zinc-950 text-white font-sans">
 
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-black/95 backdrop-blur-md">
+      <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/8 bg-zinc-950/95 backdrop-blur-md">
         <div className="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
           <div>
             <h1 className="font-serif text-xl uppercase tracking-tight">Elegance Studio</h1>
-            <p className="text-[9px] tracking-[0.4em] text-zinc-500 uppercase mt-1">
-              {user.role === 'Admin' ? 'Administrador' : `Barbeiro — ${user.barberId?.slice(0, 8)}`}
+            <p className="text-[9px] tracking-[0.4em] text-zinc-500 uppercase mt-0.5">
+              {barberDisplayName}
+              {user.role === 'Admin' && (
+                <span className="ml-2 text-zinc-700">· Admin</span>
+              )}
             </p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => setShowNewBooking(true)}
               className="text-[10px] tracking-[0.2em] uppercase text-black bg-white px-4 py-2 font-bold hover:bg-zinc-200 transition-all"
             >
               + Nova Marcação
             </button>
-            <button onClick={handleLogout} className="text-[10px] tracking-[0.3em] text-zinc-500 uppercase hover:text-white transition-colors">
+            <button
+              onClick={handleLogout}
+              className="text-[10px] tracking-[0.3em] text-zinc-600 uppercase hover:text-zinc-300 transition-colors px-2 py-2"
+            >
               Sair
             </button>
           </div>
@@ -148,83 +200,147 @@ export default function DashboardPage() {
         <div className="max-w-6xl mx-auto">
 
           {/* Week navigation */}
-          <div className="flex items-center justify-between mb-8">
-            <button onClick={prevWeek} className="w-10 h-10 flex items-center justify-center border border-white/20 hover:border-white/50 text-zinc-400 hover:text-white transition-all">‹</button>
+          <div className="flex items-center justify-between mb-6">
+            <button
+              onClick={prevWeek}
+              className="w-9 h-9 flex items-center justify-center border border-white/15 hover:border-white/40 text-zinc-400 hover:text-white transition-all text-lg"
+            >‹</button>
             <div className="flex items-center gap-4">
               <span className="text-[12px] tracking-[0.3em] uppercase text-zinc-300">
                 {MESES[selectedDate.getMonth()]} {selectedDate.getFullYear()}
               </span>
-              <button onClick={goToday} className="text-[9px] tracking-[0.3em] uppercase text-zinc-600 hover:text-white border border-white/10 px-3 py-1 transition-all">Hoje</button>
+              <button
+                onClick={goToday}
+                className="text-[9px] tracking-[0.3em] uppercase text-zinc-600 hover:text-white border border-white/10 hover:border-white/25 px-3 py-1 transition-all"
+              >Hoje</button>
             </div>
-            <button onClick={nextWeek} className="w-10 h-10 flex items-center justify-center border border-white/20 hover:border-white/50 text-zinc-400 hover:text-white transition-all">›</button>
+            <button
+              onClick={nextWeek}
+              className="w-9 h-9 flex items-center justify-center border border-white/15 hover:border-white/40 text-zinc-400 hover:text-white transition-all text-lg"
+            >›</button>
           </div>
 
           {/* Week days */}
-          <div className="grid grid-cols-7 gap-2 mb-10">
+          <div className="grid grid-cols-7 gap-1.5 mb-8">
             {weekDays.map(d => (
               <button
                 key={formatDate(d)}
-                onClick={() => setSelectedDate(d)}
+                onClick={() => setSelectedDate(new Date(d))}
                 className={`py-3 border text-center transition-all duration-200 ${
                   isSelected(d)
                     ? 'border-white bg-white text-black'
                     : isToday(d)
-                      ? 'border-white/30 text-white'
-                      : 'border-white/10 text-zinc-400 hover:border-white/30'
+                    ? 'border-white/30 text-white bg-white/5'
+                    : 'border-white/8 text-zinc-500 hover:border-white/25 hover:text-zinc-300'
                 }`}
               >
-                <span className="block text-[9px] tracking-[0.2em] uppercase">{DIAS[d.getDay()]}</span>
-                <span className="block text-[16px] font-semibold mt-1">{d.getDate()}</span>
+                <span className="block text-[8px] tracking-[0.2em] uppercase">{DIAS[d.getDay()]}</span>
+                <span className="block text-[15px] font-semibold mt-1">{d.getDate()}</span>
               </button>
             ))}
           </div>
 
-          {/* Date label */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-4">
-              <span className="w-8 h-px bg-zinc-800" />
-              <p className="text-[10px] tracking-[0.6em] text-zinc-400 uppercase">
-                {selectedDate.getDate()} {MESES[selectedDate.getMonth()]} {selectedDate.getFullYear()} · {DIAS[selectedDate.getDay()]}
-              </p>
+          {/* Stats bar */}
+          <div className="grid grid-cols-4 gap-3 mb-8">
+            {[
+              { label: 'Total', value: stats.total, color: 'text-white' },
+              { label: 'Confirmadas', value: stats.confirmed, color: 'text-emerald-400' },
+              { label: 'Pendentes', value: stats.pending, color: 'text-yellow-400' },
+              { label: 'Canceladas', value: stats.cancelled, color: 'text-zinc-600' },
+            ].map(s => (
+              <div key={s.label} className="border border-white/8 px-4 py-4 bg-zinc-900/30">
+                <p className={`text-2xl font-semibold ${s.color}`}>{s.value}</p>
+                <p className="text-[9px] tracking-[0.3em] text-zinc-600 uppercase mt-1">{s.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Admin barber filter */}
+          {user.role === 'Admin' && barbers.length > 0 && (
+            <div className="flex items-center gap-2 mb-6">
+              <span className="text-[9px] tracking-[0.3em] text-zinc-600 uppercase mr-2">Filtrar:</span>
+              <button
+                onClick={() => setFilterBarber('all')}
+                className={`text-[9px] tracking-[0.2em] uppercase px-3 py-1.5 border transition-all ${
+                  filterBarber === 'all'
+                    ? 'border-white/40 text-white bg-white/5'
+                    : 'border-white/10 text-zinc-500 hover:border-white/25'
+                }`}
+              >Todos</button>
+              {barbers.map(b => (
+                <button
+                  key={b.id}
+                  onClick={() => setFilterBarber(b.name)}
+                  className={`text-[9px] tracking-[0.2em] uppercase px-3 py-1.5 border transition-all ${
+                    filterBarber === b.name
+                      ? 'border-white/40 text-white bg-white/5'
+                      : 'border-white/10 text-zinc-500 hover:border-white/25'
+                  }`}
+                >{b.name}</button>
+              ))}
             </div>
-            <p className="text-[9px] tracking-[0.3em] text-zinc-600 uppercase">
-              {bookings.filter(b => b.status !== 'Cancelled').length} marcações
+          )}
+
+          {/* Date label */}
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-[10px] tracking-[0.5em] text-zinc-500 uppercase">
+              {selectedDate.getDate()} {MESES[selectedDate.getMonth()]} {selectedDate.getFullYear()} · {DIAS[selectedDate.getDay()]}
             </p>
           </div>
 
           {/* Bookings list */}
           {loading ? (
-            <div className="flex justify-center py-20">
-              <div className="w-6 h-6 border border-white/30 border-t-white animate-spin" />
+            <div className="space-y-2">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-20 border border-white/5 bg-zinc-900/20 animate-pulse" />
+              ))}
             </div>
-          ) : bookings.length === 0 ? (
-            <div className="border border-white/10 px-6 py-16 text-center">
-              <p className="text-[11px] tracking-[0.3em] text-zinc-600 uppercase mb-4">Sem marcações para este dia</p>
+          ) : visibleBookings.length === 0 ? (
+            <div className="border border-white/8 px-6 py-16 text-center bg-zinc-900/10">
+              <p className="text-[11px] tracking-[0.3em] text-zinc-700 uppercase mb-5">
+                Sem marcações para este dia
+              </p>
               <button
                 onClick={() => setShowNewBooking(true)}
-                className="text-[10px] tracking-[0.3em] text-zinc-400 uppercase hover:text-white border border-white/15 px-6 py-3 transition-all"
+                className="text-[10px] tracking-[0.3em] text-zinc-500 uppercase hover:text-white border border-white/10 hover:border-white/25 px-6 py-3 transition-all"
               >
                 + Adicionar marcação
               </button>
             </div>
           ) : (
-            <div className="flex flex-col gap-2">
-              {bookings.map(b => (
-                <button
-                  key={b.id}
-                  onClick={() => setSelectedBooking(b)}
-                  className={`flex items-center justify-between px-6 py-5 border transition-all duration-200 text-left hover:bg-white/[0.02] ${statusColor(b.status)}`}
-                >
-                  <div className="flex items-center gap-6">
-                    <span className="text-[16px] font-semibold w-14">{b.bookingTime}</span>
-                    <div>
-                      <p className="text-[13px] tracking-[0.1em] uppercase font-semibold">{b.clientName}</p>
-                      <p className="text-[10px] tracking-[0.3em] text-zinc-500 uppercase mt-1">{b.serviceName} · {b.serviceDurationMinutes} min</p>
+            <div className="flex flex-col gap-1.5">
+              {visibleBookings
+                .sort((a, b) => a.bookingTime.localeCompare(b.bookingTime))
+                .map(b => (
+                  <button
+                    key={b.id}
+                    onClick={() => setSelectedBooking(b)}
+                    className={`flex items-center justify-between px-6 py-4 border transition-all duration-150 text-left hover:brightness-110 ${statusColor(b.status)}`}
+                  >
+                    <div className="flex items-center gap-5">
+                      {/* Time */}
+                      <span className="text-[15px] font-semibold w-14 shrink-0 tabular-nums">
+                        {b.bookingTime}
+                      </span>
+                      {/* Info */}
+                      <div>
+                        <p className="text-[12px] tracking-[0.08em] uppercase font-semibold leading-tight">
+                          {b.clientName}
+                        </p>
+                        <p className="text-[10px] tracking-[0.2em] text-zinc-500 uppercase mt-0.5">
+                          {b.serviceName} · {b.serviceDurationMinutes} min
+                          {user.role === 'Admin' && b.barberName && (
+                            <span className="ml-2 text-zinc-600">· {b.barberName}</span>
+                          )}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <span className="text-[9px] tracking-[0.3em] uppercase">{statusLabel(b.status)}</span>
-                </button>
-              ))}
+                    {/* Status badge */}
+                    <span className={`text-[8px] tracking-[0.3em] uppercase px-2.5 py-1 shrink-0 ${statusBadgeColor(b.status)}`}>
+                      {statusLabel(b.status)}
+                    </span>
+                  </button>
+                ))}
             </div>
           )}
         </div>
@@ -232,41 +348,51 @@ export default function DashboardPage() {
 
       {/* Booking detail modal */}
       {selectedBooking && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-sm px-6" onClick={() => setSelectedBooking(null)}>
-          <div className="bg-black border border-white/20 w-full max-w-md p-8" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/85 backdrop-blur-sm px-6"
+          onClick={() => setSelectedBooking(null)}
+        >
+          <div
+            className="bg-zinc-950 border border-white/15 w-full max-w-md p-8 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal header */}
             <div className="flex items-center justify-between mb-8">
-              <p className="text-[10px] tracking-[0.6em] text-zinc-400 uppercase">Detalhe da Marcação</p>
-              <button onClick={() => setSelectedBooking(null)} className="text-zinc-500 hover:text-white text-[14px]">✕</button>
+              <p className="text-[9px] tracking-[0.6em] text-zinc-500 uppercase">Detalhe da Marcação</p>
+              <button onClick={() => setSelectedBooking(null)} className="text-zinc-600 hover:text-white transition-colors text-sm">✕</button>
             </div>
 
-            <div className="grid grid-cols-2 gap-y-4 text-[11px] mb-8">
-              <span className="text-zinc-500 uppercase tracking-wider">Cliente</span>
-              <span className="text-zinc-200 text-right">{selectedBooking.clientName}</span>
-              <span className="text-zinc-500 uppercase tracking-wider">Telefone</span>
-              <span className="text-zinc-200 text-right">{selectedBooking.clientPhone}</span>
-              <span className="text-zinc-500 uppercase tracking-wider">Serviço</span>
-              <span className="text-zinc-200 text-right">{selectedBooking.serviceName}</span>
-              <span className="text-zinc-500 uppercase tracking-wider">Duração</span>
-              <span className="text-zinc-200 text-right">{selectedBooking.serviceDurationMinutes} min</span>
-              <span className="text-zinc-500 uppercase tracking-wider">Data</span>
-              <span className="text-zinc-200 text-right">{selectedBooking.bookingDate}</span>
-              <span className="text-zinc-500 uppercase tracking-wider">Hora</span>
-              <span className="text-zinc-200 text-right">{selectedBooking.bookingTime}</span>
-              <span className="text-zinc-500 uppercase tracking-wider">Estado</span>
-              <span className={`text-right uppercase tracking-wider ${
-                selectedBooking.status === 'Pending' ? 'text-yellow-400'
-                  : selectedBooking.status === 'Confirmed' ? 'text-emerald-400'
-                  : 'text-zinc-500'
-              }`}>{statusLabel(selectedBooking.status)}</span>
+            {/* Status indicator */}
+            <div className={`inline-flex items-center px-3 py-1 mb-6 text-[9px] tracking-[0.3em] uppercase ${statusBadgeColor(selectedBooking.status)}`}>
+              {statusLabel(selectedBooking.status)}
             </div>
 
+            {/* Details grid */}
+            <div className="space-y-3 mb-8">
+              {[
+                { label: 'Cliente', value: selectedBooking.clientName },
+                { label: 'Telefone', value: selectedBooking.clientPhone },
+                { label: 'Serviço', value: selectedBooking.serviceName },
+                { label: 'Duração', value: `${selectedBooking.serviceDurationMinutes} min` },
+                { label: 'Data', value: selectedBooking.bookingDate },
+                { label: 'Hora', value: selectedBooking.bookingTime },
+                ...(user.role === 'Admin' ? [{ label: 'Barbeiro', value: selectedBooking.barberName }] : []),
+              ].map(row => (
+                <div key={row.label} className="flex items-center justify-between py-2 border-b border-white/5">
+                  <span className="text-[10px] tracking-[0.3em] text-zinc-500 uppercase">{row.label}</span>
+                  <span className="text-[12px] text-zinc-200">{row.value}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Actions */}
             {selectedBooking.status !== 'Cancelled' && (
-              <div className="flex gap-3">
+              <div className="flex gap-2">
                 {selectedBooking.status === 'Pending' && (
                   <button
                     onClick={() => handleConfirm(selectedBooking.id)}
                     disabled={actionLoading}
-                    className="flex-1 py-4 border border-emerald-500/30 text-emerald-400 text-[10px] tracking-[0.3em] uppercase hover:bg-emerald-500/10 transition-all disabled:opacity-50"
+                    className="flex-1 py-3.5 border border-emerald-500/30 text-emerald-400 text-[10px] tracking-[0.3em] uppercase hover:bg-emerald-500/10 transition-all disabled:opacity-40"
                   >
                     {actionLoading ? '...' : 'Confirmar'}
                   </button>
@@ -274,7 +400,7 @@ export default function DashboardPage() {
                 <button
                   onClick={() => handleCancel(selectedBooking.id)}
                   disabled={actionLoading}
-                  className="flex-1 py-4 border border-red-500/30 text-red-400 text-[10px] tracking-[0.3em] uppercase hover:bg-red-500/10 transition-all disabled:opacity-50"
+                  className="flex-1 py-3.5 border border-red-500/20 text-red-400 text-[10px] tracking-[0.3em] uppercase hover:bg-red-500/8 transition-all disabled:opacity-40"
                 >
                   {actionLoading ? '...' : 'Cancelar'}
                 </button>
@@ -288,7 +414,7 @@ export default function DashboardPage() {
       {showNewBooking && (
         <NewBookingModal
           onClose={() => setShowNewBooking(false)}
-          onCreated={() => fetchBookings()}
+          onCreated={() => { fetchBookings(); setShowNewBooking(false) }}
         />
       )}
     </div>
