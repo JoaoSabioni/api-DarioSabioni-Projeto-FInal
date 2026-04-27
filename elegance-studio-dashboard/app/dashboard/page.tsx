@@ -7,7 +7,7 @@ import {
   getBarberDayBookings,
   getAllBookingsByDate,
   confirmBooking,
-  cancelBooking,
+  deleteBooking,
   getBarbers,
 } from '@/lib/api'
 import NewBookingModal from '../components/NewBookingModal'
@@ -120,9 +120,15 @@ export default function DashboardPage() {
     catch { } finally { setActionLoading(false) }
   }
 
+  // Cancelar = apagar permanentemente da base de dados
   const handleCancel = async (id: string) => {
     setActionLoading(true)
-    try { await cancelBooking(id); await fetchBookings(); setSelectedBooking(null) }
+    try {
+      await deleteBooking(id)
+      setSelectedBooking(null)
+      // Remove imediatamente da lista local sem esperar pelo fetch
+      setBookings(prev => prev.filter(b => b.id !== id))
+    }
     catch { } finally { setActionLoading(false) }
   }
 
@@ -144,23 +150,25 @@ export default function DashboardPage() {
   const isToday    = (d: Date) => formatDate(d) === formatDate(new Date())
   const isSelected = (d: Date) => formatDate(d) === formatDate(selectedDate)
 
-  // Filtered bookings
+  // Filtered bookings (excluir canceladas — foram apagadas)
   const visibleBookings = bookings.filter(b =>
-    filterBarber === 'all' || b.barberName === filterBarber
+    b.status !== 'Cancelled' &&
+    (filterBarber === 'all' || b.barberName === filterBarber)
   )
 
   // Stats
   const stats = {
-    total:     visibleBookings.filter(b => b.status !== 'Cancelled').length,
+    total:     visibleBookings.length,
     confirmed: visibleBookings.filter(b => b.status === 'Confirmed').length,
     pending:   visibleBookings.filter(b => b.status === 'Pending').length,
-    cancelled: visibleBookings.filter(b => b.status === 'Cancelled').length,
   }
 
   // Barber display name
   const barberDisplayName = user?.role === 'Admin'
     ? 'Administrador'
     : barbers.find(b => b.id === user?.barberId)?.name ?? 'Barbeiro'
+
+  const isAdmin = user?.role === 'Admin'
 
   if (!user) return null
 
@@ -171,21 +179,27 @@ export default function DashboardPage() {
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/8 bg-zinc-950/95 backdrop-blur-md">
         <div className="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
           <div>
-            <h1 className="font-serif text-xl uppercase tracking-tight">Elegance Studio</h1>
+            {/* FIX: text-white explícito para garantir visibilidade */}
+            <h1 className="font-serif text-xl uppercase tracking-tight text-white">
+              Elegance Studio
+            </h1>
             <p className="text-[9px] tracking-[0.4em] text-zinc-500 uppercase mt-0.5">
               {barberDisplayName}
-              {user.role === 'Admin' && (
+              {isAdmin && (
                 <span className="ml-2 text-zinc-700">· Admin</span>
               )}
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setShowNewBooking(true)}
-              className="text-[10px] tracking-[0.2em] uppercase text-black bg-white px-4 py-2 font-bold hover:bg-zinc-200 transition-all"
-            >
-              + Nova Marcação
-            </button>
+            {/* Admin não cria marcações — só barbeiros */}
+            {!isAdmin && (
+              <button
+                onClick={() => setShowNewBooking(true)}
+                className="text-[10px] tracking-[0.2em] uppercase text-black bg-white px-4 py-2 font-bold hover:bg-zinc-200 transition-all"
+              >
+                + Nova Marcação
+              </button>
+            )}
             <button
               onClick={handleLogout}
               className="text-[10px] tracking-[0.3em] text-zinc-600 uppercase hover:text-zinc-300 transition-colors px-2 py-2"
@@ -240,13 +254,12 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          {/* Stats bar */}
-          <div className="grid grid-cols-4 gap-3 mb-8">
+          {/* Stats bar — sem "Canceladas" porque são apagadas */}
+          <div className="grid grid-cols-3 gap-3 mb-8">
             {[
-              { label: 'Total', value: stats.total, color: 'text-white' },
+              { label: 'Total',       value: stats.total,     color: 'text-white' },
               { label: 'Confirmadas', value: stats.confirmed, color: 'text-emerald-400' },
-              { label: 'Pendentes', value: stats.pending, color: 'text-yellow-400' },
-              { label: 'Canceladas', value: stats.cancelled, color: 'text-zinc-600' },
+              { label: 'Pendentes',   value: stats.pending,   color: 'text-yellow-400' },
             ].map(s => (
               <div key={s.label} className="border border-white/8 px-4 py-4 bg-zinc-900/30">
                 <p className={`text-2xl font-semibold ${s.color}`}>{s.value}</p>
@@ -256,7 +269,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Admin barber filter */}
-          {user.role === 'Admin' && barbers.length > 0 && (
+          {isAdmin && barbers.length > 0 && (
             <div className="flex items-center gap-2 mb-6">
               <span className="text-[9px] tracking-[0.3em] text-zinc-600 uppercase mr-2">Filtrar:</span>
               <button
@@ -300,12 +313,15 @@ export default function DashboardPage() {
               <p className="text-[11px] tracking-[0.3em] text-zinc-700 uppercase mb-5">
                 Sem marcações para este dia
               </p>
-              <button
-                onClick={() => setShowNewBooking(true)}
-                className="text-[10px] tracking-[0.3em] text-zinc-500 uppercase hover:text-white border border-white/10 hover:border-white/25 px-6 py-3 transition-all"
-              >
-                + Adicionar marcação
-              </button>
+              {/* Admin não pode criar marcações */}
+              {!isAdmin && (
+                <button
+                  onClick={() => setShowNewBooking(true)}
+                  className="text-[10px] tracking-[0.3em] text-zinc-500 uppercase hover:text-white border border-white/10 hover:border-white/25 px-6 py-3 transition-all"
+                >
+                  + Adicionar marcação
+                </button>
+              )}
             </div>
           ) : (
             <div className="flex flex-col gap-1.5">
@@ -318,24 +334,21 @@ export default function DashboardPage() {
                     className={`flex items-center justify-between px-6 py-4 border transition-all duration-150 text-left hover:brightness-110 ${statusColor(b.status)}`}
                   >
                     <div className="flex items-center gap-5">
-                      {/* Time */}
                       <span className="text-[15px] font-semibold w-14 shrink-0 tabular-nums">
                         {b.bookingTime}
                       </span>
-                      {/* Info */}
                       <div>
                         <p className="text-[12px] tracking-[0.08em] uppercase font-semibold leading-tight">
                           {b.clientName}
                         </p>
                         <p className="text-[10px] tracking-[0.2em] text-zinc-500 uppercase mt-0.5">
                           {b.serviceName} · {b.serviceDurationMinutes} min
-                          {user.role === 'Admin' && b.barberName && (
+                          {isAdmin && b.barberName && (
                             <span className="ml-2 text-zinc-600">· {b.barberName}</span>
                           )}
                         </p>
                       </div>
                     </div>
-                    {/* Status badge */}
                     <span className={`text-[8px] tracking-[0.3em] uppercase px-2.5 py-1 shrink-0 ${statusBadgeColor(b.status)}`}>
                       {statusLabel(b.status)}
                     </span>
@@ -356,27 +369,24 @@ export default function DashboardPage() {
             className="bg-zinc-950 border border-white/15 w-full max-w-md p-8 shadow-2xl"
             onClick={e => e.stopPropagation()}
           >
-            {/* Modal header */}
             <div className="flex items-center justify-between mb-8">
               <p className="text-[9px] tracking-[0.6em] text-zinc-500 uppercase">Detalhe da Marcação</p>
               <button onClick={() => setSelectedBooking(null)} className="text-zinc-600 hover:text-white transition-colors text-sm">✕</button>
             </div>
 
-            {/* Status indicator */}
             <div className={`inline-flex items-center px-3 py-1 mb-6 text-[9px] tracking-[0.3em] uppercase ${statusBadgeColor(selectedBooking.status)}`}>
               {statusLabel(selectedBooking.status)}
             </div>
 
-            {/* Details grid */}
             <div className="space-y-3 mb-8">
               {[
-                { label: 'Cliente', value: selectedBooking.clientName },
+                { label: 'Cliente',  value: selectedBooking.clientName },
                 { label: 'Telefone', value: selectedBooking.clientPhone },
-                { label: 'Serviço', value: selectedBooking.serviceName },
-                { label: 'Duração', value: `${selectedBooking.serviceDurationMinutes} min` },
-                { label: 'Data', value: selectedBooking.bookingDate },
-                { label: 'Hora', value: selectedBooking.bookingTime },
-                ...(user.role === 'Admin' ? [{ label: 'Barbeiro', value: selectedBooking.barberName }] : []),
+                { label: 'Serviço',  value: selectedBooking.serviceName },
+                { label: 'Duração',  value: `${selectedBooking.serviceDurationMinutes} min` },
+                { label: 'Data',     value: selectedBooking.bookingDate },
+                { label: 'Hora',     value: selectedBooking.bookingTime },
+                ...(isAdmin ? [{ label: 'Barbeiro', value: selectedBooking.barberName }] : []),
               ].map(row => (
                 <div key={row.label} className="flex items-center justify-between py-2 border-b border-white/5">
                   <span className="text-[10px] tracking-[0.3em] text-zinc-500 uppercase">{row.label}</span>
@@ -385,33 +395,31 @@ export default function DashboardPage() {
               ))}
             </div>
 
-            {/* Actions */}
-            {selectedBooking.status !== 'Cancelled' && (
-              <div className="flex gap-2">
-                {selectedBooking.status === 'Pending' && (
-                  <button
-                    onClick={() => handleConfirm(selectedBooking.id)}
-                    disabled={actionLoading}
-                    className="flex-1 py-3.5 border border-emerald-500/30 text-emerald-400 text-[10px] tracking-[0.3em] uppercase hover:bg-emerald-500/10 transition-all disabled:opacity-40"
-                  >
-                    {actionLoading ? '...' : 'Confirmar'}
-                  </button>
-                )}
+            {/* Actions — admin só pode cancelar (apagar), barbeiro pode confirmar e cancelar */}
+            <div className="flex gap-2">
+              {!isAdmin && selectedBooking.status === 'Pending' && (
                 <button
-                  onClick={() => handleCancel(selectedBooking.id)}
+                  onClick={() => handleConfirm(selectedBooking.id)}
                   disabled={actionLoading}
-                  className="flex-1 py-3.5 border border-red-500/20 text-red-400 text-[10px] tracking-[0.3em] uppercase hover:bg-red-500/8 transition-all disabled:opacity-40"
+                  className="flex-1 py-3.5 border border-emerald-500/30 text-emerald-400 text-[10px] tracking-[0.3em] uppercase hover:bg-emerald-500/10 transition-all disabled:opacity-40"
                 >
-                  {actionLoading ? '...' : 'Cancelar'}
+                  {actionLoading ? '...' : 'Confirmar'}
                 </button>
-              </div>
-            )}
+              )}
+              <button
+                onClick={() => handleCancel(selectedBooking.id)}
+                disabled={actionLoading}
+                className="flex-1 py-3.5 border border-red-500/20 text-red-400 text-[10px] tracking-[0.3em] uppercase hover:bg-red-500/8 transition-all disabled:opacity-40"
+              >
+                {actionLoading ? '...' : 'Apagar'}
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* New booking modal */}
-      {showNewBooking && (
+      {/* New booking modal — só para barbeiros */}
+      {showNewBooking && !isAdmin && (
         <NewBookingModal
           onClose={() => setShowNewBooking(false)}
           onCreated={() => { fetchBookings(); setShowNewBooking(false) }}

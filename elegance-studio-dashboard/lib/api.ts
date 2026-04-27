@@ -75,11 +75,9 @@ export async function getAllBookings() {
 export async function getAllBookingsByDate(date: string) {
   const res = await request(`/api/bookings?date=${date}`)
   if (!res.ok) {
-    // fallback: tentar sem filtro de data
     const res2 = await request('/api/bookings')
     if (!res2.ok) throw new Error('Erro ao carregar marcações')
     const all = await res2.json()
-    // filtrar no cliente por data
     return all.filter((b: { bookingDate: string }) => b.bookingDate === date)
   }
   return res.json()
@@ -108,9 +106,10 @@ export async function updateBooking(id: string, data: { bookingDate?: string; bo
   return res.json()
 }
 
+// createBooking agora aceita array de serviceIds (múltiplos serviços)
 export async function createBooking(data: {
   barberId: string
-  serviceId: string
+  serviceIds: string[] 
   bookingDate: string
   bookingTime: string
   clientName: string
@@ -125,6 +124,7 @@ export async function createBooking(data: {
   return res.json()
 }
 
+// deleteBooking — apaga permanentemente (usado em vez de cancelar)
 export async function deleteBooking(id: string) {
   const res = await request(`/api/bookings/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error('Erro ao apagar')
