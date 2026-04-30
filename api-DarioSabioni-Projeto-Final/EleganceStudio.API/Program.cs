@@ -8,7 +8,6 @@ using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
 using System.Text;
 using System.Threading.RateLimiting;
-using Microsoft.Extensions.Http;
 using Polly;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -42,7 +41,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience            = builder.Configuration["Jwt:Audience"],
             IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
         };
-        // NecessÃ¡rio para SignalR (token via query string)
+        // Necessário para SignalR (token via query string)
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
@@ -73,10 +72,10 @@ builder.Services.AddSignalR();
 // Rate Limiting
 builder.Services.AddRateLimiter(options =>
 {
-    options.AddFixedWindowLimiter("bookings",    o => { o.PermitLimit = 10; o.Window = TimeSpan.FromMinutes(1); o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst; o.QueueLimit = 0; });
-    options.AddFixedWindowLimiter("availability",o => { o.PermitLimit = 30; o.Window = TimeSpan.FromMinutes(1); o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst; o.QueueLimit = 0; });
-    options.AddFixedWindowLimiter("lookup",      o => { o.PermitLimit = 5;  o.Window = TimeSpan.FromMinutes(1); o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst; o.QueueLimit = 0; });
-    options.AddFixedWindowLimiter("login",       o => { o.PermitLimit = 5;  o.Window = TimeSpan.FromMinutes(1); o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst; o.QueueLimit = 0; });
+    options.AddFixedWindowLimiter("bookings",     o => { o.PermitLimit = 10; o.Window = TimeSpan.FromMinutes(1); o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst; o.QueueLimit = 0; });
+    options.AddFixedWindowLimiter("availability", o => { o.PermitLimit = 30; o.Window = TimeSpan.FromMinutes(1); o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst; o.QueueLimit = 0; });
+    options.AddFixedWindowLimiter("lookup",       o => { o.PermitLimit = 5;  o.Window = TimeSpan.FromMinutes(1); o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst; o.QueueLimit = 0; });
+    options.AddFixedWindowLimiter("login",        o => { o.PermitLimit = 5;  o.Window = TimeSpan.FromMinutes(1); o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst; o.QueueLimit = 0; });
 });
 
 // Services
@@ -86,10 +85,12 @@ builder.Services.AddHttpClient();
 // SMS Service (com Polly)
 builder.Services.AddHttpClient<ISmsService, SmsService>()
     .AddTransientHttpErrorPolicy(p =>
-        p.WaitAndRetryAsync(3, attempt =>
-            TimeSpan.FromSeconds(Math.Pow(2, attempt))))
+        p.WaitAndRetryAsync(3, attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt))))
     .AddTransientHttpErrorPolicy(p =>
         p.CircuitBreakerAsync(5, TimeSpan.FromSeconds(30)));
+
+// ─── Arquivo automático à meia-noite ─────────────────────────────────────────
+builder.Services.AddHostedService<BookingArchiveService>();
 
 var app = builder.Build();
 
@@ -103,6 +104,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<EleganceStudio.API.Hubs.BookingHub>("/hubs/bookings");
+
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();

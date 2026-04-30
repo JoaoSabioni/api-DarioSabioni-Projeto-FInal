@@ -106,10 +106,9 @@ export async function updateBooking(id: string, data: { bookingDate?: string; bo
   return res.json()
 }
 
-// createBooking agora aceita array de serviceIds (múltiplos serviços)
 export async function createBooking(data: {
   barberId: string
-  serviceIds: string[] 
+  serviceIds: string[]
   bookingDate: string
   bookingTime: string
   clientName: string
@@ -124,7 +123,6 @@ export async function createBooking(data: {
   return res.json()
 }
 
-// deleteBooking — apaga permanentemente (usado em vez de cancelar)
 export async function deleteBooking(id: string) {
   const res = await request(`/api/bookings/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error('Erro ao apagar')
@@ -134,5 +132,14 @@ export async function deleteBooking(id: string) {
 export async function lookupBooking(phone: string) {
   const res = await fetch(`${API}/api/bookings/lookup?phone=${encodeURIComponent(phone)}`)
   if (!res.ok) throw new Error('Marcação não encontrada')
+  return res.json()
+}
+
+// ─── Histórico (BookingLogs) ──────────────────────────────────────────────────
+// filter: '7d' | '30d' | 'total'
+// Admin vê todos; Barber só vê os seus (o backend enforce isto via JWT)
+export async function getBookingLogs(filter: '7d' | '30d' | 'total' = '7d') {
+  const res = await request(`/api/booking-logs?filter=${filter}`)
+  if (!res.ok) throw new Error('Erro ao carregar histórico')
   return res.json()
 }

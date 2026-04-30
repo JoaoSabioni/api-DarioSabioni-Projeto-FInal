@@ -149,7 +149,7 @@ export default function NewBookingModal({ onClose, onCreated }: NewBookingModalP
         barberId,
         serviceIds: selectedServiceIds,
         clientName,
-        clientPhone: phone.trim(),
+        clientPhone: phone.replace(/\s+/g, '').trim(),
         bookingDate,
         bookingTime: selectedTime + ':00', // garantir formato HH:mm:ss
       })
@@ -235,20 +235,19 @@ export default function NewBookingModal({ onClose, onCreated }: NewBookingModalP
             {availableServices.length > 0 ? (
               <div className="flex gap-2">
                 <select
-                  value={pendingServiceId}
-                  onChange={e => setPendingServiceId(e.target.value)}
-                  className="flex-1 bg-zinc-900 border border-white/10 text-white text-[12px] px-3 py-2.5 focus:outline-none focus:border-white/30"
+                  value=""
+                  onChange={e => {
+                    const id = e.target.value
+                    if (id && !selectedServiceIds.includes(id))
+                      setSelectedServiceIds(prev => [...prev, id])
+                  }}
+                  className="w-full bg-zinc-900 border border-white/10 text-white text-[12px] px-3 py-2.5 focus:outline-none focus:border-white/30"
                 >
                   <option value="">Adicionar serviço...</option>
                   {availableServices.map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
-                <button
-                  onClick={addService}
-                  disabled={!pendingServiceId}
-                  className="px-4 py-2.5 border border-white/15 text-white text-[16px] hover:bg-white/5 transition-all disabled:opacity-30 shrink-0"
-                >+</button>
               </div>
             ) : selectedServiceIds.length > 0 && (
               <p className="text-[10px] text-zinc-600 tracking-[0.2em] uppercase mt-1">Todos os serviços adicionados</p>

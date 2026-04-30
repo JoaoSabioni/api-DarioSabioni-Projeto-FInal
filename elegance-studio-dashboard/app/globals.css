@@ -1,12 +1,10 @@
 @import "tailwindcss";
 
 /* ── Google Fonts ─────────────────────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap');
 
 /* ── CSS Variables ────────────────────────────────────────────────────────── */
 :root {
-  --gold: #c9a96e;
-  --gold-dim: rgba(201, 169, 110, 0.15);
   --surface: #0a0a0a;
 }
 
@@ -14,7 +12,7 @@
 html { scroll-behavior: smooth; }
 
 body {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
   background: var(--surface);
   -webkit-font-smoothing: antialiased;
 }
@@ -33,11 +31,9 @@ body::before {
 
 /* ── Fonts ────────────────────────────────────────────────────────────────── */
 .font-serif { font-family: 'Cormorant Garamond', Georgia, serif; }
-.font-sans  { font-family: 'DM Sans', system-ui, sans-serif; }
+.font-sans  { font-family: 'Inter', system-ui, sans-serif; }
 
 /* ── Keyframes ────────────────────────────────────────────────────────────── */
-
-/* Login scissors loader */
 @keyframes scissors-top {
   0%, 100% { transform: rotate(-20deg); }
   50%       { transform: rotate(10deg); }
@@ -50,53 +46,38 @@ body::before {
   0%, 100% { transform: translateY(0px); }
   50%       { transform: translateY(-3px); }
 }
-
-/* Shimmer for skeleton loaders */
 @keyframes shimmer {
   0%   { background-position: -200% center; }
   100% { background-position:  200% center; }
 }
-
-/* Fade + slide up (staggered list items) */
 @keyframes fadeSlideUp {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-
-/* Fade in */
 @keyframes fadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
-
-/* Pulse glow */
 @keyframes pulseGlow {
   0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.05); }
   50%       { box-shadow: 0 0 12px 2px rgba(255,255,255,0.08); }
 }
-
-/* Sweep line (login progress) */
 @keyframes sweep {
   0%   { transform: scaleX(0); transform-origin: left; }
   50%  { transform: scaleX(1); transform-origin: left; }
   51%  { transform: scaleX(1); transform-origin: right; }
   100% { transform: scaleX(0); transform-origin: right; }
 }
-
-/* Spin slow */
 @keyframes spinSlow {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
-
-/* Counter numbers */
-@keyframes countUp {
-  from { transform: translateY(100%); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
+@keyframes titleGlow {
+  0%, 100% { text-shadow: 0 0 40px rgba(255,255,255,0.08), 0 0 80px rgba(255,255,255,0.04); }
+  50%       { text-shadow: 0 0 60px rgba(255,255,255,0.14), 0 0 120px rgba(255,255,255,0.06); }
 }
 
 /* ── Utility classes ──────────────────────────────────────────────────────── */
-
 .animate-shimmer {
   background: linear-gradient(
     90deg,
@@ -107,27 +88,15 @@ body::before {
   background-size: 200% 100%;
   animation: shimmer 1.8s ease-in-out infinite;
 }
-
 .animate-fade-slide-up {
   animation: fadeSlideUp 0.35s ease forwards;
   opacity: 0;
 }
-
-.animate-fade-in {
-  animation: fadeIn 0.4s ease forwards;
-}
-
-.animate-pulse-glow {
-  animation: pulseGlow 2s ease-in-out infinite;
-}
-
-.animate-sweep {
-  animation: sweep 1.6s ease-in-out infinite;
-}
-
-.animate-spin-slow {
-  animation: spinSlow 3s linear infinite;
-}
+.animate-fade-in    { animation: fadeIn 0.4s ease forwards; }
+.animate-pulse-glow { animation: pulseGlow 2s ease-in-out infinite; }
+.animate-sweep      { animation: sweep 1.6s ease-in-out infinite; }
+.animate-spin-slow  { animation: spinSlow 3s linear infinite; }
+.animate-title-glow { animation: titleGlow 3s ease-in-out infinite; }
 
 /* Stagger delays */
 .delay-0   { animation-delay: 0ms; }
@@ -142,24 +111,35 @@ body::before {
 .delay-500 { animation-delay: 500ms; }
 
 /* Scissors loader */
-.scissors-loader {
-  animation: scissors-body 1s ease-in-out infinite;
-}
-.scissors-blade-top {
-  transform-origin: 50% 75%;
-  animation: scissors-top 1s ease-in-out infinite;
-}
-.scissors-blade-bottom {
-  transform-origin: 50% 25%;
-  animation: scissors-bottom 1s ease-in-out infinite;
+.scissors-loader       { animation: scissors-body 1s ease-in-out infinite; }
+.scissors-blade-top    { transform-origin: 50% 75%; animation: scissors-top 1s ease-in-out infinite; }
+.scissors-blade-bottom { transform-origin: 50% 25%; animation: scissors-bottom 1s ease-in-out infinite; }
+
+/* Accent line — branca com glow */
+.accent-line {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
 }
 
-/* Gold accent line */
-.gold-line {
-  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+/* Input styling — bordas mais visíveis */
+.input-elegant {
+  width: 100%;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.18);
+  color: white;
+  padding: 14px 18px;
+  font-size: 13px;
+  font-family: 'Inter', system-ui, sans-serif;
+  outline: none;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+.input-elegant::placeholder { color: rgba(255,255,255,0.2); }
+.input-elegant:focus {
+  border-color: rgba(255,255,255,0.55);
+  background: rgba(255,255,255,0.05);
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.04), inset 0 1px 0 rgba(255,255,255,0.06);
 }
 
-/* Subtle border glow on hover */
+/* Hover glow */
 .hover-glow {
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }

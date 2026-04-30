@@ -19,9 +19,9 @@ public class AvailabilityService : IAvailabilityService
         _lisbon = TimeZoneInfo.FindSystemTimeZoneById("Europe/Lisbon");
 
         var wh = config.GetSection("WorkingHours");
-        _workStart = TimeOnly.Parse(wh["Start"] ?? "09:00");
-        _workEnd = TimeOnly.Parse(wh["End"] ?? "19:00");
-        _slotInterval = int.Parse(wh["SlotIntervalMinutes"] ?? "30");
+        _workStart    = TimeOnly.Parse(wh["Start"]               ?? "09:00");
+        _workEnd      = TimeOnly.Parse(wh["End"]                 ?? "19:00");
+        _slotInterval = int.Parse(wh["SlotIntervalMinutes"]      ?? "30");
     }
 
     public async Task<List<TimeOnly>> GetAvailableSlotsAsync(
@@ -37,11 +37,11 @@ public class AvailabilityService : IAvailabilityService
 
         // 3. Validar data (hora local de Portugal)
         var nowLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _lisbon);
-        var today = DateOnly.FromDateTime(nowLocal);
+        var today    = DateOnly.FromDateTime(nowLocal);
         if (date < today || date > today.AddDays(60)) return new List<TimeOnly>();
 
         // 4. Gerar todos os slots válidos para este serviço
-        var slots = new List<TimeOnly>();
+        var slots   = new List<TimeOnly>();
         var current = _workStart;
         while (current.AddMinutes(service.DurationMinutes) <= _workEnd)
         {
@@ -57,19 +57,19 @@ public class AvailabilityService : IAvailabilityService
         }
 
         // 6. Buscar marcações activas do barbeiro nesse dia
+        // Global filter já exclui IsDeleted=true automaticamente
         var activeBookings = await _db.Bookings
             .Include(b => b.Service)
             .Where(b => b.BarberId == barberId
                      && b.BookingDate == date
-                     && b.Status != "Cancelled"
-                     && !b.IsDeleted)
+                     && b.Status != "Cancelled")
             .ToListAsync();
 
         // 7. Calcular slots bloqueados (considerando duração de cada marcação)
         var blocked = new HashSet<TimeOnly>();
         foreach (var booking in activeBookings)
         {
-            var duration = booking.Service.DurationMinutes;
+            var duration   = booking.Service.DurationMinutes;
             var slotCursor = booking.BookingTime;
             while (slotCursor < booking.BookingTime.AddMinutes(duration))
             {

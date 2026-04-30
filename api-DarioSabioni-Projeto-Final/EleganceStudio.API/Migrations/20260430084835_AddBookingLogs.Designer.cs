@@ -3,6 +3,7 @@ using System;
 using EleganceStudio.API.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace EleganceStudio.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260430084835_AddBookingLogs")]
+    partial class AddBookingLogs
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -111,13 +114,7 @@ namespace EleganceStudio.API.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BookingDate");
-
-                    b.HasIndex("ClientPhone");
-
                     b.HasIndex("ServiceId");
-
-                    b.HasIndex("BarberId", "BookingDate");
 
                     b.HasIndex("BarberId", "BookingDate", "BookingTime")
                         .IsUnique()
