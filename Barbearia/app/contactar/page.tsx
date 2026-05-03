@@ -1,6 +1,14 @@
-import PageContactar from './page_contactar';
-export const dynamic = 'force-dynamic'
+'use client'
 
-export default function Page() {
-  return <PageContactar />;
-}   
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+
+export default function ContactarRedirect() {
+  const router = useRouter()
+
+  useEffect(() => {
+    router.replace('/marcar')
+  }, [router])
+
+  return null
+}

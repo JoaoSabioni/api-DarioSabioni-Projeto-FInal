@@ -135,7 +135,7 @@ export default function NewBookingModal({ onClose, onCreated }: NewBookingModalP
 
   const bookingDate = selectedDay ? toDateStr(calYear, calMonth, selectedDay) : ''
 
-  // ── Submit
+  // ── Submit — fecha o modal imediatamente, refetch em background
   const handleSubmit = async () => {
     if (!barberId || selectedServiceIds.length === 0 || !clientName ||
         !phone || phone.trim() === '+351' || !bookingDate || !selectedTime) {
@@ -153,14 +153,14 @@ export default function NewBookingModal({ onClose, onCreated }: NewBookingModalP
         bookingDate,
         bookingTime: selectedTime + ':00', // garantir formato HH:mm:ss
       })
-      onCreated()
+      onClose()   // fecha o modal imediatamente — sem esperar pelo refetch
+      onCreated() // refetch em background, não bloqueia o utilizador
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : ''
       setError(msg === 'Horário já ocupado'
         ? 'Esse horário já está ocupado.'
         : 'Erro ao criar marcação. Tenta novamente.')
-    } finally {
-      setLoading(false)
+      setLoading(false) // só no erro — no sucesso o modal já fechou
     }
   }
 

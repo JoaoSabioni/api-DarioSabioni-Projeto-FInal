@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import Navbar from '../components/Navbar'
@@ -9,50 +9,63 @@ import Navbar from '../components/Navbar'
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5134'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-type Barber = { id: string; name: string; specialty: string; phone: string }
+type Barber  = { id: string; name: string; specialty: string; phone: string }
 type Service = { id: string; name: string; price: number; durationMinutes: number }
-type Step = 1 | 2 | 3 | 4 | 5 | 6
+type Step    = 1 | 2 | 3 | 4 | 5 | 6
 
-// ─── Fotos dos barbeiros (mapear por nome) ───────────────────────────────────
+// ─── Fotos dos barbeiros ──────────────────────────────────────────────────────
 const BARBER_PHOTOS: Record<string, string> = {
-  'Edi': '/Fotos_edi/edi2.png',
+  'Edi':   '/Fotos_edi/edi2.png',
   'Tomas': '/Fotos_Tomas/tomas2.png',
   'Abreu': '/Fotos_Abreu/abreuPrincipal.jpg',
 }
-
 const BARBER_ROLES: Record<string, string> = {
-  'Edi': 'Fundador',
+  'Edi':   'Fundador',
   'Tomas': 'Colaborador',
   'Abreu': 'Colaborador',
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 const formatDateApi = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
 export default function BookingWizard() {
   // ─── State ───────────────────────────────────────────────────────────────
-  const [step, setStep] = useState<Step>(1)
-  const [barbers, setBarbers] = useState<Barber[]>([])
-  const [services, setServices] = useState<Service[]>([])
-  const [slots, setSlots] = useState<string[]>([])
-  const [loading, setLoading] = useState(false)
+  const [step,       setStep]       = useState<Step>(1)
+  const [barbers,    setBarbers]    = useState<Barber[]>([])
+  const [services,   setServices]   = useState<Service[]>([])
+  const [slots,      setSlots]      = useState<string[]>([])
+  const [loading,    setLoading]    = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
+  const [error,      setError]      = useState('')
+  const [success,    setSuccess]    = useState(false)
 
-  const [selectedBarber, setSelectedBarber] = useState<Barber | null>(null)
-  const [selectedService, setSelectedService] = useState<Service | null>(null)
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
-  const [clientName, setClientName] = useState('')
-  const [clientPhone, setClientPhone] = useState('')
+  const [selectedBarber,   setSelectedBarber]   = useState<Barber | null>(null)
+  const [selectedServices, setSelectedServices] = useState<Service[]>([])   // ← múltiplos
+  const [selectedDate,     setSelectedDate]     = useState<Date | null>(null)
+  const [selectedSlot,     setSelectedSlot]     = useState<string | null>(null)
+  const [clientName,       setClientName]       = useState('')
+  const [clientPhone,      setClientPhone]      = useState('')
 
   const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth())
-  const [calendarYear, setCalendarYear] = useState(new Date().getFullYear())
+  const [calendarYear,  setCalendarYear]  = useState(new Date().getFullYear())
+
+  // ─── Derived ─────────────────────────────────────────────────────────────
+  const totalDuration = useMemo(
+    () => selectedServices.reduce((acc, s) => acc + s.durationMinutes, 0),
+    [selectedServices]
+  )
+  const totalPrice = useMemo(
+    () => selectedServices.reduce((acc, s) => acc + s.price, 0),
+    [selectedServices]
+  )
+  const availableServices = useMemo(
+    () => services.filter(s => !selectedServices.find(sel => sel.id === s.id)),
+    [services, selectedServices]
+  )
 
   // ─── Fetch barbers ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -72,27 +85,39 @@ export default function BookingWizard() {
 
   // ─── Fetch slots ─────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!selectedBarber || !selectedService || !selectedDate) return
+    if (!selectedBarber || selectedServices.length === 0 || !selectedDate) return
     setLoading(true)
     setSlots([])
     setSelectedSlot(null)
 
     const dateStr = formatDateApi(selectedDate)
-    fetch(`${API}/api/availability?barberId=${selectedBarber.id}&serviceId=${selectedService.id}&date=${dateStr}`)
+    // Passa o primeiro serviceId para o endpoint de disponibilidade
+    // O backend usa o serviceId para calcular duração; para múltiplos serviços
+    // passamos também a duração total via query param
+    const params = new URLSearchParams({
+      barberId:      selectedBarber.id,
+      serviceId:     selectedServices[0].id,
+      date:          dateStr,
+      totalDuration: String(totalDuration),
+    })
+
+    fetch(`${API}/api/availability?${params}`)
       .then(r => r.json())
-      .then(data => {
-        setSlots(data.availableSlots || [])
-        setLoading(false)
-      })
-      .catch(() => {
-        setError('Erro ao carregar horários.')
-        setLoading(false)
-      })
-  }, [selectedBarber, selectedService, selectedDate])
+      .then(data => { setSlots(data.availableSlots || []); setLoading(false) })
+      .catch(() => { setError('Erro ao carregar horários.'); setLoading(false) })
+  }, [selectedBarber, selectedServices, selectedDate, totalDuration])
+
+  // ─── Toggle serviço ──────────────────────────────────────────────────────
+  const toggleService = (service: Service) => {
+    setSelectedServices(prev => {
+      const exists = prev.find(s => s.id === service.id)
+      return exists ? prev.filter(s => s.id !== service.id) : [...prev, service]
+    })
+  }
 
   // ─── Submit ──────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (!selectedBarber || !selectedService || !selectedDate || !selectedSlot) return
+    if (!selectedBarber || selectedServices.length === 0 || !selectedDate || !selectedSlot) return
     setSubmitting(true)
     setError('')
 
@@ -101,8 +126,8 @@ export default function BookingWizard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          barberId: selectedBarber.id,
-          serviceId: selectedService.id,
+          barberId:    selectedBarber.id,
+          serviceIds:  selectedServices.map(s => s.id),   // ← array
           bookingDate: formatDateApi(selectedDate),
           bookingTime: selectedSlot,
           clientName,
@@ -114,7 +139,7 @@ export default function BookingWizard() {
         setSuccess(true)
         setStep(6)
       } else if (res.status === 409) {
-        setError('Este horário já foi reservado. Escolha outro.')
+        setError('Este horário já foi reservado. Escolhe outro.')
         setSlots(prev => prev.filter(s => s !== selectedSlot))
         setSelectedSlot(null)
         setStep(4)
@@ -134,10 +159,10 @@ export default function BookingWizard() {
   const maxDate = new Date()
   maxDate.setDate(maxDate.getDate() + 60)
 
-  const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate()
+  const daysInMonth    = new Date(calendarYear, calendarMonth + 1, 0).getDate()
   const firstDayOfWeek = new Date(calendarYear, calendarMonth, 1).getDay()
 
-  const canGoBack = calendarYear > today.getFullYear() ||
+  const canGoBack    = calendarYear > today.getFullYear() ||
     (calendarYear === today.getFullYear() && calendarMonth > today.getMonth())
   const canGoForward = new Date(calendarYear, calendarMonth + 1, 1) <= maxDate
 
@@ -146,16 +171,15 @@ export default function BookingWizard() {
     d.setHours(0, 0, 0, 0)
     return d >= today && d <= maxDate
   }
-
   const isDateSelected = (day: number) =>
     selectedDate?.getFullYear() === calendarYear &&
-    selectedDate?.getMonth() === calendarMonth &&
-    selectedDate?.getDate() === day
+    selectedDate?.getMonth()    === calendarMonth &&
+    selectedDate?.getDate()     === day
 
   // ─── Steps config ────────────────────────────────────────────────────────
   const STEPS = [
     { num: 1, label: 'Barbeiro' },
-    { num: 2, label: 'Serviço' },
+    { num: 2, label: 'Serviços' },
     { num: 3, label: 'Data' },
     { num: 4, label: 'Hora' },
     { num: 5, label: 'Dados' },
@@ -215,7 +239,7 @@ export default function BookingWizard() {
       <section className="px-6 md:px-8 py-12 md:py-16">
         <div className="max-w-3xl mx-auto">
 
-          {/* STEP 1: Barbeiro */}
+          {/* ── STEP 1: Barbeiro ─────────────────────────────────────────── */}
           {step === 1 && (
             <div>
               <p className="text-[10px] tracking-[0.8em] text-zinc-300 uppercase mb-8">01 · Escolhe o teu barbeiro</p>
@@ -229,7 +253,12 @@ export default function BookingWizard() {
                     }`}
                   >
                     <div className="relative w-14 h-14 overflow-hidden flex-shrink-0">
-                      <Image src={BARBER_PHOTOS[b.name] || '/logo.png'} alt={b.name} fill className="object-cover grayscale group-hover:grayscale-0 transition-all duration-500" />
+                      <Image
+                        src={BARBER_PHOTOS[b.name] || '/logo.png'}
+                        alt={b.name}
+                        fill
+                        className="object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
+                      />
                     </div>
                     <div className="text-left">
                       <p className="text-[14px] tracking-[0.15em] uppercase font-semibold group-hover:text-white transition-colors">{b.name}</p>
@@ -241,34 +270,80 @@ export default function BookingWizard() {
             </div>
           )}
 
-          {/* STEP 2: Serviço */}
+          {/* ── STEP 2: Serviços (múltiplos) ─────────────────────────────── */}
           {step === 2 && (
             <div>
-              <p className="text-[10px] tracking-[0.8em] text-zinc-300 uppercase mb-8">02 · Escolhe o serviço</p>
-              <div className="flex flex-col gap-2">
-                {services.map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => { setSelectedService(s); setStep(3) }}
-                    className={`flex items-center justify-between px-6 py-5 border text-left transition-all duration-300 group ${
-                      selectedService?.id === s.id ? 'border-white bg-white/5' : 'border-white/10 hover:border-white/30'
-                    }`}
-                  >
-                    <div>
-                      <p className="text-[13px] tracking-[0.15em] uppercase font-semibold group-hover:text-white transition-colors">{s.name}</p>
-                      <p className="text-[10px] tracking-[0.3em] text-zinc-500 uppercase mt-1">{s.durationMinutes} min</p>
-                    </div>
-                    <span className="font-serif text-[28px] text-zinc-400 group-hover:text-white transition-colors">{s.price}€</span>
-                  </button>
-                ))}
+              <p className="text-[10px] tracking-[0.8em] text-zinc-300 uppercase mb-2">02 · Escolhe os serviços</p>
+              <p className="text-[10px] text-zinc-600 tracking-wider mb-8">Podes selecionar mais do que um serviço.</p>
+
+              <div className="flex flex-col gap-2 mb-6">
+                {services.map(s => {
+                  const isSelected = !!selectedServices.find(sel => sel.id === s.id)
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => toggleService(s)}
+                      className={`flex items-center justify-between px-6 py-5 border text-left transition-all duration-300 group ${
+                        isSelected ? 'border-white bg-white/5' : 'border-white/10 hover:border-white/30'
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        {/* Checkbox visual */}
+                        <div className={`w-4 h-4 border flex items-center justify-center flex-shrink-0 transition-all ${
+                          isSelected ? 'border-white bg-white' : 'border-white/25'
+                        }`}>
+                          {isSelected && (
+                            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                              <path d="M2 6l3 3 5-5" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-[13px] tracking-[0.15em] uppercase font-semibold group-hover:text-white transition-colors">{s.name}</p>
+                          <p className="text-[10px] tracking-[0.3em] text-zinc-500 uppercase mt-0.5">{s.durationMinutes} min</p>
+                        </div>
+                      </div>
+                      <span className="font-serif text-[28px] text-zinc-400 group-hover:text-white transition-colors">{s.price}€</span>
+                    </button>
+                  )
+                })}
               </div>
-              <button onClick={() => setStep(1)} className="mt-8 text-[10px] tracking-[0.3em] text-zinc-500 uppercase hover:text-white flex items-center gap-3 transition-colors">
+
+              {/* Totais */}
+              {selectedServices.length > 0 && (
+                <div className="border border-white/10 bg-white/[0.02] px-6 py-4 mb-6 flex items-center justify-between">
+                  <div>
+                    <p className="text-[9px] tracking-[0.5em] text-zinc-500 uppercase mb-1">
+                      {selectedServices.length} {selectedServices.length === 1 ? 'serviço' : 'serviços'} selecionados
+                    </p>
+                    <p className="text-[11px] text-zinc-300 tracking-wider">{totalDuration} min total</p>
+                  </div>
+                  <span className="font-serif text-[32px] text-white">{totalPrice}€</span>
+                </div>
+              )}
+
+              <button
+                onClick={() => setStep(3)}
+                disabled={selectedServices.length === 0}
+                className={`w-full flex items-center justify-between px-8 py-5 border transition-all duration-300 ${
+                  selectedServices.length > 0
+                    ? 'border-white/20 hover:bg-white hover:text-black cursor-pointer'
+                    : 'border-white/5 text-zinc-700 cursor-not-allowed'
+                }`}
+              >
+                <span className="text-[11px] tracking-[0.3em] uppercase font-semibold">Continuar</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+              </button>
+
+              <button onClick={() => setStep(1)} className="mt-6 text-[10px] tracking-[0.3em] text-zinc-500 uppercase hover:text-white flex items-center gap-3 transition-colors">
                 <span className="w-6 h-px bg-zinc-700" /> Voltar
               </button>
             </div>
           )}
 
-          {/* STEP 3: Data */}
+          {/* ── STEP 3: Data ──────────────────────────────────────────────── */}
           {step === 3 && (
             <div>
               <p className="text-[10px] tracking-[0.8em] text-zinc-300 uppercase mb-8">03 · Escolhe a data</p>
@@ -293,16 +368,16 @@ export default function BookingWizard() {
               <div className="grid grid-cols-7 gap-1">
                 {Array.from({ length: firstDayOfWeek }, (_, i) => <div key={`e-${i}`} />)}
                 {Array.from({ length: daysInMonth }, (_, i) => {
-                  const day = i + 1
+                  const day       = i + 1
                   const selectable = isDateSelectable(day)
-                  const selected = isDateSelected(day)
+                  const selected   = isDateSelected(day)
                   return (
                     <button key={day} disabled={!selectable}
                       onClick={() => { setSelectedDate(new Date(calendarYear, calendarMonth, day)); setStep(4) }}
                       className={`py-3 text-[12px] border transition-all duration-200 ${
-                        selected ? 'border-white bg-white text-black font-semibold'
-                          : selectable ? 'border-white/10 text-zinc-300 hover:border-white/40 hover:text-white'
-                          : 'border-transparent text-zinc-800 cursor-not-allowed'
+                        selected      ? 'border-white bg-white text-black font-semibold'
+                        : selectable  ? 'border-white/10 text-zinc-300 hover:border-white/40 hover:text-white'
+                                      : 'border-transparent text-zinc-800 cursor-not-allowed'
                       }`}>{day}</button>
                   )
                 })}
@@ -313,13 +388,13 @@ export default function BookingWizard() {
             </div>
           )}
 
-          {/* STEP 4: Hora */}
+          {/* ── STEP 4: Hora ──────────────────────────────────────────────── */}
           {step === 4 && (
             <div>
               <p className="text-[10px] tracking-[0.8em] text-zinc-300 uppercase mb-4">04 · Escolhe o horário</p>
-              {selectedDate && selectedService && (
+              {selectedDate && selectedServices.length > 0 && (
                 <p className="text-[10px] tracking-[0.3em] text-zinc-500 uppercase mb-8">
-                  {selectedDate.getDate()} de {MESES[selectedDate.getMonth()]} · {selectedService.name} · {selectedService.durationMinutes} min
+                  {selectedDate.getDate()} de {MESES[selectedDate.getMonth()]} · {totalDuration} min total
                 </p>
               )}
               {loading ? (
@@ -334,9 +409,9 @@ export default function BookingWizard() {
               ) : (
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                   {slots.map(slot => {
-                    const [h, m] = slot.split(':').map(Number)
-                    const endMin = h * 60 + m + (selectedService?.durationMinutes || 30)
-                    const endStr = `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`
+                    const [h, m]  = slot.split(':').map(Number)
+                    const endMin  = h * 60 + m + totalDuration
+                    const endStr  = `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`
                     return (
                       <button key={slot}
                         onClick={() => { setSelectedSlot(slot); setStep(5) }}
@@ -356,59 +431,94 @@ export default function BookingWizard() {
             </div>
           )}
 
-          {/* STEP 5: Dados */}
+          {/* ── STEP 5: Dados ─────────────────────────────────────────────── */}
           {step === 5 && (
             <div>
               <p className="text-[10px] tracking-[0.8em] text-zinc-300 uppercase mb-8">05 · Os teus dados</p>
+
+              {/* Resumo */}
               <div className="border border-white/10 px-6 py-5 mb-10 bg-white/[0.02]">
                 <p className="text-[9px] tracking-[0.6em] text-zinc-500 uppercase mb-4">Resumo</p>
                 <div className="grid grid-cols-2 gap-y-3 text-[11px]">
                   <span className="text-zinc-500 uppercase tracking-wider">Barbeiro</span>
                   <span className="text-zinc-200 text-right">{selectedBarber?.name}</span>
-                  <span className="text-zinc-500 uppercase tracking-wider">Serviço</span>
-                  <span className="text-zinc-200 text-right">{selectedService?.name}</span>
+
+                  <span className="text-zinc-500 uppercase tracking-wider">
+                    {selectedServices.length === 1 ? 'Serviço' : 'Serviços'}
+                  </span>
+                  <span className="text-zinc-200 text-right">
+                    {selectedServices.length === 1
+                      ? selectedServices[0].name
+                      : selectedServices.map(s => s.name).join(', ')
+                    }
+                  </span>
+
                   <span className="text-zinc-500 uppercase tracking-wider">Data</span>
-                  <span className="text-zinc-200 text-right">{selectedDate?.getDate()} de {MESES[selectedDate?.getMonth() || 0]} {selectedDate?.getFullYear()}</span>
+                  <span className="text-zinc-200 text-right">
+                    {selectedDate?.getDate()} de {MESES[selectedDate?.getMonth() || 0]} {selectedDate?.getFullYear()}
+                  </span>
+
                   <span className="text-zinc-500 uppercase tracking-wider">Hora</span>
                   <span className="text-zinc-200 text-right">{selectedSlot}</span>
+
                   <span className="text-zinc-500 uppercase tracking-wider">Duração</span>
-                  <span className="text-zinc-200 text-right">{selectedService?.durationMinutes} min</span>
-                  <span className="text-zinc-500 uppercase tracking-wider">Preço</span>
-                  <span className="text-zinc-200 text-right">{selectedService?.price}€</span>
+                  <span className="text-zinc-200 text-right">{totalDuration} min</span>
+
+                  <span className="text-zinc-500 uppercase tracking-wider">Total</span>
+                  <span className="text-zinc-200 text-right font-semibold">{totalPrice}€</span>
                 </div>
               </div>
+
               <div className="flex flex-col gap-6">
                 <div>
                   <label className="text-[10px] tracking-[0.4em] text-zinc-400 uppercase mb-3 block">Nome completo</label>
-                  <input type="text" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="O teu nome" maxLength={100}
-                    className="w-full bg-transparent border border-white/20 focus:border-white/60 outline-none px-6 py-4 text-[13px] text-white transition-all" />
+                  <input
+                    type="text"
+                    value={clientName}
+                    onChange={e => setClientName(e.target.value)}
+                    placeholder="O teu nome"
+                    maxLength={100}
+                    className="w-full bg-transparent border border-white/20 focus:border-white/60 outline-none px-6 py-4 text-[13px] text-white transition-all"
+                  />
                 </div>
                 <div>
                   <label className="text-[10px] tracking-[0.4em] text-zinc-400 uppercase mb-3 block">Telemóvel</label>
-                  <input type="tel" value={clientPhone} onChange={e => setClientPhone(e.target.value)} placeholder="+351XXXXXXXXX"
-                    className="w-full bg-transparent border border-white/20 focus:border-white/60 outline-none px-6 py-4 text-[13px] text-white transition-all" />
+                  <input
+                    type="tel"
+                    value={clientPhone}
+                    onChange={e => setClientPhone(e.target.value)}
+                    placeholder="+351XXXXXXXXX"
+                    className="w-full bg-transparent border border-white/20 focus:border-white/60 outline-none px-6 py-4 text-[13px] text-white transition-all"
+                  />
                   <p className="text-[9px] text-zinc-600 tracking-wider mt-2">Formato: +351 seguido de 9 dígitos</p>
                 </div>
               </div>
-              <button onClick={handleSubmit}
+
+              <button
+                onClick={handleSubmit}
                 disabled={!clientName.trim() || !/^\+351\d{9}$/.test(clientPhone) || submitting}
                 className={`mt-10 w-full flex items-center justify-between px-8 py-6 border transition-all duration-300 ${
                   clientName.trim() && /^\+351\d{9}$/.test(clientPhone) && !submitting
-                    ? 'border-white/20 hover:bg-white hover:text-black cursor-pointer' : 'border-white/5 text-zinc-700 cursor-not-allowed'
-                }`}>
-                <span className="text-[11px] tracking-[0.3em] uppercase font-semibold">{submitting ? 'A processar...' : 'Confirmar Marcação'}</span>
+                    ? 'border-white/20 hover:bg-white hover:text-black cursor-pointer'
+                    : 'border-white/5 text-zinc-700 cursor-not-allowed'
+                }`}
+              >
+                <span className="text-[11px] tracking-[0.3em] uppercase font-semibold">
+                  {submitting ? 'A processar...' : 'Confirmar Marcação'}
+                </span>
                 {submitting
                   ? <div className="w-4 h-4 border border-current border-t-transparent animate-spin" />
                   : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
                 }
               </button>
+
               <button onClick={() => setStep(4)} className="mt-6 text-[10px] tracking-[0.3em] text-zinc-500 uppercase hover:text-white flex items-center gap-3 transition-colors">
                 <span className="w-6 h-px bg-zinc-700" /> Voltar
               </button>
             </div>
           )}
 
-          {/* STEP 6: Confirmação */}
+          {/* ── STEP 6: Confirmação ───────────────────────────────────────── */}
           {step === 6 && success && (
             <div className="text-center py-12">
               <div className="w-16 h-16 border border-white bg-white text-black flex items-center justify-center mx-auto mb-8 text-[24px]">✓</div>
@@ -419,21 +529,42 @@ export default function BookingWizard() {
               <p className="text-[11px] text-zinc-500 tracking-wider mb-12">
                 O link é válido durante 15 minutos. Após confirmar, o barbeiro será notificado.
               </p>
+
               <div className="border border-white/10 px-6 py-5 max-w-sm mx-auto bg-white/[0.02] mb-12">
                 <div className="grid grid-cols-2 gap-y-3 text-[11px]">
                   <span className="text-zinc-500 uppercase tracking-wider">Barbeiro</span>
                   <span className="text-zinc-200 text-right">{selectedBarber?.name}</span>
-                  <span className="text-zinc-500 uppercase tracking-wider">Serviço</span>
-                  <span className="text-zinc-200 text-right">{selectedService?.name}</span>
+
+                  <span className="text-zinc-500 uppercase tracking-wider">
+                    {selectedServices.length === 1 ? 'Serviço' : 'Serviços'}
+                  </span>
+                  <span className="text-zinc-200 text-right">
+                    {selectedServices.length === 1
+                      ? selectedServices[0].name
+                      : selectedServices.map(s => s.name).join(', ')
+                    }
+                  </span>
+
                   <span className="text-zinc-500 uppercase tracking-wider">Data</span>
-                  <span className="text-zinc-200 text-right">{selectedDate?.getDate()} de {MESES[selectedDate?.getMonth() || 0]}</span>
+                  <span className="text-zinc-200 text-right">
+                    {selectedDate?.getDate()} de {MESES[selectedDate?.getMonth() || 0]}
+                  </span>
+
                   <span className="text-zinc-500 uppercase tracking-wider">Hora</span>
                   <span className="text-zinc-200 text-right">{selectedSlot}</span>
+
+                  <span className="text-zinc-500 uppercase tracking-wider">Total</span>
+                  <span className="text-zinc-200 text-right">{totalPrice}€</span>
+
                   <span className="text-zinc-500 uppercase tracking-wider">Estado</span>
                   <span className="text-yellow-500 text-right uppercase tracking-wider">Pendente</span>
                 </div>
               </div>
-              <Link href="/main" className="inline-block border border-white/20 px-12 py-5 text-[11px] tracking-[0.5em] uppercase hover:bg-white hover:text-black font-bold transition-all duration-500">
+
+              <Link
+                href="/main"
+                className="inline-block border border-white/20 px-12 py-5 text-[11px] tracking-[0.5em] uppercase hover:bg-white hover:text-black font-bold transition-all duration-500"
+              >
                 Voltar ao Início
               </Link>
             </div>
@@ -444,8 +575,12 @@ export default function BookingWizard() {
 
       {step !== 6 && (
         <footer className="py-14 px-6 md:px-8 border-t border-white/5 text-center bg-zinc-950/30">
-          <p className="text-[10px] tracking-[0.6em] md:tracking-[0.8em] text-zinc-500 uppercase mb-4">ELEGANCE STUDIO © 2026 · PINHAL NOVO · PORTUGAL</p>
-          <Link href="/politica-privacidade" className="text-[9px] tracking-[0.4em] text-zinc-700 uppercase hover:text-zinc-500 transition-colors">Política de Privacidade</Link>
+          <p className="text-[10px] tracking-[0.6em] md:tracking-[0.8em] text-zinc-500 uppercase mb-4">
+            ELEGANCE STUDIO © 2026 · PINHAL NOVO · PORTUGAL
+          </p>
+          <Link href="/politica-privacidade" className="text-[9px] tracking-[0.4em] text-zinc-700 uppercase hover:text-zinc-500 transition-colors">
+            Política de Privacidade
+          </Link>
         </footer>
       )}
     </div>
