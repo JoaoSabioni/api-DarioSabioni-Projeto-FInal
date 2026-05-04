@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { getUser, isAuthenticated, clearAuth } from '@/lib/auth'
 import {
@@ -10,6 +10,7 @@ import {
   deleteBooking,
   getBarbers,
 } from '@/lib/api'
+import { useSignalR } from '@/lib/useSignalR'
 import NewBookingModal from '../components/NewBookingModal'
 
 type Booking = {
@@ -40,7 +41,6 @@ function timeToMins(t: string) {
   const [h, m] = t.split(':').map(Number)
   return h * 60 + m
 }
-
 function statusBg(s: string) {
   if (s === 'Pending')   return 'bg-yellow-500/10 border-yellow-500/25 text-yellow-300'
   if (s === 'Confirmed') return 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300'
@@ -71,6 +71,8 @@ export default function DashboardPage() {
   const [filterBarber, setFilterBarber]       = useState('all')
   const [viewMode, setViewMode]         = useState<ViewMode>('list')
 
+  const selectedDateStr = formatDate(selectedDate)
+
   useEffect(() => {
     if (!isAuthenticated()) { router.push('/login'); return }
     setUser(getUser())
@@ -85,30 +87,70 @@ export default function DashboardPage() {
     setLoading(true)
     try {
       const data = user.role === 'Admin'
-        ? await getAllBookingsByDate(formatDate(selectedDate))
+        ? await getAllBookingsByDate(selectedDateStr)
         : user.barberId
-          ? await getBarberDayBookings(user.barberId, formatDate(selectedDate))
+          ? await getBarberDayBookings(user.barberId, selectedDateStr)
           : []
       setBookings(data)
     } catch { setBookings([]) }
     finally  { setLoading(false) }
-  }, [user, selectedDate])
+  }, [user, selectedDateStr])
 
   useEffect(() => { fetchBookings() }, [fetchBookings])
 
+  // ── SignalR — grupos a subscrever ─────────────────────────────────────────
+  const signalRGroups = useMemo(() => {
+    if (!user) return []
+    if (user.role === 'Admin') {
+      // Admin subscreve todos os barbeiros
+      return barbers.map(b => `barber-${b.id}`)
+    }
+    if (user.barberId) return [`barber-${user.barberId}`]
+    return []
+  }, [user, barbers])
+
+  // ── SignalR — handlers ────────────────────────────────────────────────────
+  const signalREvents = useMemo(() => ({
+    NewBooking: (booking: unknown) => {
+      const b = booking as Booking
+      // Só adiciona se for do dia seleccionado
+      if (b.bookingDate !== selectedDateStr) return
+      setBookings(prev => {
+        // Evita duplicados
+        if (prev.find(x => x.id === b.id)) return prev
+        return [...prev, b].sort((a, z) => a.bookingTime.localeCompare(z.bookingTime))
+      })
+    },
+    BookingUpdated: (booking: unknown) => {
+      const b = booking as Booking
+      setBookings(prev => prev.map(x => x.id === b.id ? b : x))
+      // Actualiza o modal se estiver aberto
+      setSelectedBooking(prev => prev?.id === b.id ? b : prev)
+    },
+  }), [selectedDateStr])
+
+  useSignalR(signalREvents, signalRGroups, !!user)
+
+  // ── Acções ────────────────────────────────────────────────────────────────
   const handleConfirm = async (id: string) => {
     setActionLoading(true)
-    try { await confirmBooking(id); await fetchBookings(); setSelectedBooking(null) }
-    catch {} finally { setActionLoading(false) }
+    try {
+      await confirmBooking(id)
+      // O SignalR actualiza a lista — não precisamos de refetch
+      setSelectedBooking(null)
+    } catch {} finally { setActionLoading(false) }
   }
 
   const handleDelete = async (id: string) => {
     setActionLoading(true)
-    try { await deleteBooking(id); setSelectedBooking(null); setBookings(p => p.filter(b => b.id !== id)) }
-    catch {} finally { setActionLoading(false) }
+    try {
+      await deleteBooking(id)
+      setSelectedBooking(null)
+      setBookings(p => p.filter(b => b.id !== id))
+    } catch {} finally { setActionLoading(false) }
   }
 
-  // Semana
+  // ── Semana ────────────────────────────────────────────────────────────────
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d   = new Date(selectedDate)
     const off = d.getDay() === 0 ? -6 : 1 - d.getDay()
@@ -130,7 +172,7 @@ export default function DashboardPage() {
     pending:   visibleBookings.filter(b => b.status === 'Pending').length,
   }
 
-  const isAdmin = user?.role === 'Admin'
+  const isAdmin    = user?.role === 'Admin'
   const barberName = isAdmin
     ? 'Administrador'
     : barbers.find(b => b.id === user?.barberId)?.name ?? 'Barbeiro'
@@ -150,10 +192,11 @@ export default function DashboardPage() {
             <h1 className="text-[14px] md:text-[16px] font-semibold tracking-wider text-white uppercase">
               Elegance Studio
             </h1>
-            <p className="text-[11px] text-zinc-500 mt-0.5">{barberName}{isAdmin && <span className="ml-1.5 text-zinc-700">· Admin</span>}</p>
+            <p className="text-[11px] text-zinc-500 mt-0.5">
+              {barberName}{isAdmin && <span className="ml-1.5 text-zinc-700">· Admin</span>}
+            </p>
           </div>
           <div className="flex items-center gap-2">
-            {/* Toggle vista */}
             <div className="flex border border-white/15 overflow-hidden rounded">
               <button
                 onClick={() => setViewMode('list')}
@@ -293,7 +336,7 @@ export default function DashboardPage() {
                           {b.clientName}
                         </p>
                         <p className="text-[10px] md:text-[11px] font-medium text-zinc-500 mt-0.5 truncate">
-                          {b.serviceName} · {b.serviceDurationMinutes} min
+                          {b.serviceName}
                           {isAdmin && b.barberName && <span className="ml-1.5 text-zinc-600">· {b.barberName}</span>}
                         </p>
                       </div>
@@ -314,7 +357,6 @@ export default function DashboardPage() {
                 <div className="h-64 animate-pulse bg-zinc-900/40" />
               ) : (
                 <div className="flex overflow-x-auto">
-                  {/* Eixo horas */}
                   <div className="w-12 md:w-16 shrink-0 border-r border-white/10">
                     {HOURS.map(h => (
                       <div key={h} className="flex items-start justify-end pr-2 pt-1.5" style={{ height: HOUR_HEIGHT }}>
@@ -325,7 +367,6 @@ export default function DashboardPage() {
                     ))}
                   </div>
 
-                  {/* Grelha */}
                   <div className="flex-1 relative min-w-0">
                     {HOURS.map(h => (
                       <div key={h} className="border-t border-white/6" style={{ height: HOUR_HEIGHT }}>
@@ -333,7 +374,6 @@ export default function DashboardPage() {
                       </div>
                     ))}
 
-                    {/* Linha hora actual */}
                     {isToday(selectedDate) && (() => {
                       const now  = new Date()
                       const top  = ((now.getHours() * 60 + now.getMinutes() - TIMELINE_START) / 60) * HOUR_HEIGHT
@@ -346,7 +386,6 @@ export default function DashboardPage() {
                       )
                     })()}
 
-                    {/* Blocos de marcação */}
                     {visibleBookings.map(b => {
                       const top    = ((timeToMins(b.bookingTime) - TIMELINE_START) / 60) * HOUR_HEIGHT
                       const height = Math.max((b.serviceDurationMinutes / 60) * HOUR_HEIGHT, 32)
@@ -406,7 +445,6 @@ export default function DashboardPage() {
                 { label: 'Cliente',  value: selectedBooking.clientName },
                 { label: 'Telefone', value: selectedBooking.clientPhone },
                 { label: 'Serviço',  value: selectedBooking.serviceName },
-                { label: 'Duração',  value: `${selectedBooking.serviceDurationMinutes} min` },
                 { label: 'Data',     value: selectedBooking.bookingDate },
                 { label: 'Hora',     value: selectedBooking.bookingTime.slice(0,5) },
                 ...(isAdmin ? [{ label: 'Barbeiro', value: selectedBooking.barberName }] : []),
@@ -439,7 +477,7 @@ export default function DashboardPage() {
       {showNewBooking && !isAdmin && (
         <NewBookingModal
           onClose={() => setShowNewBooking(false)}
-          onCreated={() => { fetchBookings(); setShowNewBooking(false) }}
+          onCreated={() => { setShowNewBooking(false) }}
         />
       )}
     </div>
