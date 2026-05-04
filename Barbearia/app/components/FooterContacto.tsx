@@ -10,6 +10,15 @@ export default function FooterContacto() {
             <p>Pinhal Novo, Portugal</p>
             <p>Seg — Sáb: 09:00 — 20:00</p>
           </div>
+          <div className="space-y-1">
+            <p className="text-[9px] tracking-[0.5em] uppercase text-white/40">Contacto</p>
+            <a
+              href="tel:+351933320269"
+              className="text-[11px] tracking-[0.3em] uppercase text-silver-dim hover:text-white transition-colors"
+            >
+              +351 933 320 269
+            </a>
+          </div>
         </div>
         <div className="flex flex-col justify-end md:items-end text-right space-y-4">
           <p className="text-[9px] tracking-[0.5em] text-white/40 uppercase">© 2026 Rigor Técnico</p>

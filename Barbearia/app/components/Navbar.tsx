@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 
-type ActivePage = 'main' | 'servicos' | 'galeria' | 'contactar' | 'marcar'
+type ActivePage = 'main' | 'servicos' | 'galeria' | 'marcar'
 
 export default function Navbar({ activePage }: { activePage?: ActivePage }) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -35,8 +35,7 @@ export default function Navbar({ activePage }: { activePage?: ActivePage }) {
         {/* Desktop */}
         <div className="hidden md:flex gap-8 items-center">
           <Link href="/servicos" className={linkClass('servicos')}>Serviços</Link>
-          <Link href="/galeria" className={linkClass('galeria')}>Galeria</Link>
-          <Link href="/contactar" className={linkClass('contactar')}>Contacto</Link>
+          <Link href="/galeria"  className={linkClass('galeria')}>Galeria</Link>
           <Link href="/marcar" className="text-[11px] tracking-[0.2em] uppercase text-black bg-white px-6 py-2.5 font-bold hover:bg-zinc-200 transition-all">MARCAR</Link>
         </div>
 
@@ -53,12 +52,11 @@ export default function Navbar({ activePage }: { activePage?: ActivePage }) {
       </div>
 
       {/* Mobile menu */}
-      <div className={`md:hidden overflow-hidden transition-all duration-300 ${menuOpen ? 'max-h-72' : 'max-h-0'} bg-black/98 border-t border-white/5`}>
+      <div className={`md:hidden overflow-hidden transition-all duration-300 ${menuOpen ? 'max-h-60' : 'max-h-0'} bg-black/98 border-t border-white/5`}>
         <div className="flex flex-col px-6 py-6 gap-6">
           <Link href="/servicos" onClick={() => setMenuOpen(false)} className={mobileLinkClass('servicos')}>Serviços</Link>
-          <Link href="/galeria" onClick={() => setMenuOpen(false)} className={mobileLinkClass('galeria')}>Galeria</Link>
-          <Link href="/contactar" onClick={() => setMenuOpen(false)} className={mobileLinkClass('contactar')}>Contacto</Link>
-          <Link href="/marcar" onClick={() => setMenuOpen(false)} className="text-[11px] tracking-[0.3em] uppercase text-black bg-white px-6 py-3 font-bold text-center hover:bg-zinc-200 transition-all">MARCAR</Link>
+          <Link href="/galeria"  onClick={() => setMenuOpen(false)} className={mobileLinkClass('galeria')}>Galeria</Link>
+          <Link href="/marcar"   onClick={() => setMenuOpen(false)} className="text-[11px] tracking-[0.3em] uppercase text-black bg-white px-6 py-3 font-bold text-center hover:bg-zinc-200 transition-all">MARCAR</Link>
         </div>
       </div>
     </nav>
